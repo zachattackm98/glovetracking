@@ -248,7 +248,7 @@ const DashboardPage: React.FC = () => {
                           </div>
                           <div className="mt-2 flex justify-end">
                             <Link to={`/assets/${asset.id}`}>
-                              <Button size="sm">Update Certification</Button>
+                              <Button size="sm">Mark as Testing</Button>
                             </Link>
                           </div>
                         </div>
