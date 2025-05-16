@@ -10,6 +10,8 @@ export interface User {
 
 export type AssetStatus = 'active' | 'near-due' | 'expired' | 'failed' | 'in-testing';
 export type AssetClass = 'Class 0' | 'Class 00' | 'Class 1' | 'Class 2' | 'Class 3' | 'Class 4';
+export type GloveSize = '7' | '8' | '9' | '10' | '11' | '12';
+export type GloveColor = 'red' | 'yellow' | 'black' | 'beige';
 
 export interface Asset {
   id: string;
@@ -23,6 +25,8 @@ export interface Asset {
   failureDate?: string;
   failureReason?: string;
   testingStartDate?: string;
+  gloveSize?: GloveSize;
+  gloveColor?: GloveColor;
   certificationDocuments: CertificationDocument[];
 }
 

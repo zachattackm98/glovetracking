@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Asset, AssetClass, User } from '../../types';
+import { Asset, AssetClass, User, GloveSize, GloveColor } from '../../types';
 import Button from '../ui/Button';
 
 interface AssetFormProps {
@@ -23,6 +23,8 @@ const AssetForm: React.FC<AssetFormProps> = ({
     assignedUserId: null,
     issueDate: new Date().toISOString().substring(0, 10),
     lastCertificationDate: new Date().toISOString().substring(0, 10),
+    gloveSize: undefined,
+    gloveColor: undefined,
     ...initialData,
   });
 
@@ -40,6 +42,8 @@ const AssetForm: React.FC<AssetFormProps> = ({
   };
 
   const assetClasses: AssetClass[] = ['Class 0', 'Class 00', 'Class 1', 'Class 2', 'Class 3', 'Class 4'];
+  const gloveSizes: GloveSize[] = ['7', '8', '9', '10', '11', '12'];
+  const gloveColors: GloveColor[] = ['red', 'yellow', 'black', 'beige'];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -75,6 +79,46 @@ const AssetForm: React.FC<AssetFormProps> = ({
             {assetClasses.map(cls => (
               <option key={cls} value={cls}>
                 {cls}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="gloveSize" className="block text-sm font-medium text-gray-700">
+            Glove Size
+          </label>
+          <select
+            id="gloveSize"
+            name="gloveSize"
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            value={formData.gloveSize || ''}
+            onChange={handleChange}
+          >
+            <option value="">Select Size</option>
+            {gloveSizes.map(size => (
+              <option key={size} value={size}>
+                Size {size}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="gloveColor" className="block text-sm font-medium text-gray-700">
+            Glove Color
+          </label>
+          <select
+            id="gloveColor"
+            name="gloveColor"
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            value={formData.gloveColor || ''}
+            onChange={handleChange}
+          >
+            <option value="">Select Color</option>
+            {gloveColors.map(color => (
+              <option key={color} value={color} className="capitalize">
+                {color}
               </option>
             ))}
           </select>

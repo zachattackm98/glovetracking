@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, User, FileText } from 'lucide-react';
+import { Calendar, User, FileText, Ruler, Palette } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Asset } from '../../types';
 import Card, { CardContent, CardFooter } from '../ui/Card';
@@ -41,6 +41,26 @@ const AssetCard: React.FC<AssetCardProps> = ({
         </div>
         
         <div className="space-y-3">
+          {asset.gloveSize && (
+            <div className="flex items-center text-sm">
+              <Ruler className="h-4 w-4 text-gray-400 mr-2" />
+              <div>
+                <span className="text-gray-500">Size: </span>
+                <span className="font-medium">{asset.gloveSize}</span>
+              </div>
+            </div>
+          )}
+          
+          {asset.gloveColor && (
+            <div className="flex items-center text-sm">
+              <Palette className="h-4 w-4 text-gray-400 mr-2" />
+              <div>
+                <span className="text-gray-500">Color: </span>
+                <span className="font-medium capitalize">{asset.gloveColor}</span>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-center text-sm">
             <Calendar className="h-4 w-4 text-gray-400 mr-2" />
             <div>
