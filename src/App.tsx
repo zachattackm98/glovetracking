@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import AssetsPage from './pages/AssetsPage';
 import AssetDetailsPage from './pages/AssetDetailsPage';
 import ImportExportPage from './pages/ImportExportPage';
+import WalkthroughPage from './pages/WalkthroughPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/walkthrough" element={<WalkthroughPage />} />
             
             {/* Protected routes */}
             <Route element={<ProtectedRoute />}>

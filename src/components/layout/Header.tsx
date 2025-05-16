@@ -1,7 +1,7 @@
 import React, { Fragment, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
-import { Shield, Menu as MenuIcon, X, Bell, LogOut, User, ChevronDown } from 'lucide-react';
+import { Shield, Menu as MenuIcon, X, Bell, LogOut, User, ChevronDown, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Header: React.FC = () => {
@@ -18,6 +18,7 @@ const Header: React.FC = () => {
     { name: 'Assets', href: '/assets', adminOnly: false },
     { name: 'Users', href: '/users', adminOnly: true },
     { name: 'Import/Export', href: '/import-export', adminOnly: true },
+    { name: 'Help', href: '/walkthrough', adminOnly: false },
   ];
   
   const filteredNavigation = navigation.filter(item => {
@@ -39,7 +40,6 @@ const Header: React.FC = () => {
               </Link>
             </div>
             
-            {/* Desktop menu */}
             <nav className="hidden sm:ml-6 sm:flex sm:space-x-8">
               {filteredNavigation.map((item) => (
                 <Link
@@ -57,9 +57,7 @@ const Header: React.FC = () => {
             </nav>
           </div>
           
-          {/* Right side items */}
           <div className="hidden sm:ml-6 sm:flex sm:items-center">
-            {/* Notification button */}
             <button
               type="button"
               className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -68,7 +66,6 @@ const Header: React.FC = () => {
               <Bell className="h-6 w-6" />
             </button>
             
-            {/* Profile dropdown */}
             <Menu as="div" className="ml-3 relative">
               <div>
                 <Menu.Button className="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
@@ -112,6 +109,19 @@ const Header: React.FC = () => {
                   </Menu.Item>
                   <Menu.Item>
                     {({ active }) => (
+                      <Link
+                        to="/walkthrough"
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } flex items-center px-4 py-2 text-sm text-gray-700`}
+                      >
+                        <HelpCircle className="mr-3 h-4 w-4 text-gray-500" />
+                        Help & Training
+                      </Link>
+                    )}
+                  </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
                       <button
                         onClick={logout}
                         className={`${
@@ -128,7 +138,6 @@ const Header: React.FC = () => {
             </Menu>
           </div>
           
-          {/* Mobile menu button */}
           <div className="flex items-center sm:hidden">
             <button
               type="button"
@@ -146,7 +155,6 @@ const Header: React.FC = () => {
         </div>
       </div>
       
-      {/* Mobile menu */}
       <div className={`${mobileMenuOpen ? 'block' : 'hidden'} sm:hidden`}>
         <div className="pt-2 pb-3 space-y-1">
           {filteredNavigation.map((item) => (
@@ -190,6 +198,13 @@ const Header: React.FC = () => {
               onClick={() => setMobileMenuOpen(false)}
             >
               Your Profile
+            </Link>
+            <Link
+              to="/walkthrough"
+              className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Help & Training
             </Link>
             <button
               onClick={() => {
