@@ -154,7 +154,7 @@ const DashboardPage: React.FC = () => {
                               </p>
                             </div>
                             <Link to={`/assets/${asset.id}`}>
-                              <Button size="sm">View Details</Button>
+                              <Button size="sm">Update Certification</Button>
                             </Link>
                           </div>
                         </div>
