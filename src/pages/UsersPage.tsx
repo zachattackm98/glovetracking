@@ -1,12 +1,11 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useOrganization } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 import PageLayout from '../components/layout/PageLayout';
 import UserList from '../components/admin/UserList';
 
 const UsersPage: React.FC = () => {
-  const { organization, membership } = useOrganization();
-  const isAdmin = membership?.role === 'admin';
+  const { isAdmin } = useRole();
 
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;

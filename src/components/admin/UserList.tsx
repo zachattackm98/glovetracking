@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { useOrganization } from '@clerk/clerk-react';
+import { useRole } from '../../hooks/useRole';
 import { UserPlus, Mail, Calendar } from 'lucide-react';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 
 const UserList: React.FC = () => {
-  const { organization, membership, inviteMember } = useOrganization();
+  const { organization } = useOrganization();
+  const { isAdmin } = useRole();
   const [isInviting, setIsInviting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState(false);
-
-  const isAdmin = membership?.role === 'admin';
 
   if (!isAdmin) {
     return null;
@@ -149,7 +149,7 @@ const UserList: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">
-                      {member.role}
+                      {member.role === 'org:admin' ? 'Admin' : 'Member'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
