@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addMonths } from 'date-fns';
-import { Asset, AssetStatus, User, CertificationDocument } from '../types';
-import { useUser, useOrganization } from '@clerk/clerk-react';
+import { Asset, AssetStatus, CertificationDocument } from '../types';
+import { useUser } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 
 interface AssetContextType {
   assets: Asset[];
@@ -52,14 +53,17 @@ const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
 
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
-  const { organization } = useOrganization();
+  const { isAdmin, orgId } = useRole();
   const [assets, setAssets] = useState<Asset[]>([]);
-  const isAdmin = organization?.membership?.role === 'admin';
-  const orgId = organization?.id;
+
+  // Debug logging
+  console.log('Asset Context - Is Admin:', isAdmin);
+  console.log('Asset Context - Org ID:', orgId);
+  console.log('Asset Context - User ID:', user?.id);
 
   useEffect(() => {
     if (!user || !orgId) {
-      console.warn('No user or organization found. Cannot load or manipulate assets.');
+      console.warn('No user or organization found. Cannot load assets.');
       return;
     }
 
