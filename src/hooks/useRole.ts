@@ -9,7 +9,6 @@ export const useRole = () => {
   console.log('Organization:', organization?.id);
   console.log('User:', user?.id);
   
-  // Check for exact role match - Clerk uses 'org:admin' and 'org:member'
   const isAdmin = membership?.role === 'org:admin';
   const isMember = membership?.role === 'org:member' || isAdmin;
   
@@ -18,6 +17,5 @@ export const useRole = () => {
     isAdmin,
     isMember,
     isLoading: !isUserLoaded || !isOrgLoaded,
-    orgId: organization?.id,
   };
 };
