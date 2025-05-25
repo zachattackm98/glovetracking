@@ -1,11 +1,11 @@
 import React, { Fragment, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
-import { Shield, Menu as MenuIcon, X, Bell, LogOut, User, ChevronDown, HelpCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Shield, Menu as MenuIcon, X, Bell, HelpCircle } from 'lucide-react';
+import { UserButton, useUser } from '@clerk/clerk-react';
 
 const Header: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   
@@ -23,7 +23,7 @@ const Header: React.FC = () => {
   
   const filteredNavigation = navigation.filter(item => {
     if (item.adminOnly) {
-      return user?.role === 'admin';
+      return user?.publicMetadata.role === 'admin';
     }
     return true;
   });
@@ -57,7 +57,7 @@ const Header: React.FC = () => {
             </nav>
           </div>
           
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
+          <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
             <button
               type="button"
               className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -66,76 +66,14 @@ const Header: React.FC = () => {
               <Bell className="h-6 w-6" />
             </button>
             
-            <Menu as="div" className="ml-3 relative">
-              <div>
-                <Menu.Button className="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                  <span className="sr-only">Open user menu</span>
-                  <div className="flex items-center">
-                    <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700">
-                      {user?.name?.charAt(0) || 'U'}
-                    </div>
-                    <ChevronDown className="ml-1 h-4 w-4 text-gray-400" />
-                  </div>
-                </Menu.Button>
-              </div>
-              <Transition
-                as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-                  <div className="px-4 py-2 text-xs text-gray-500">
-                    Signed in as
-                    <p className="font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-primary-600">{user?.role}</p>
-                  </div>
-                  <div className="border-t border-gray-100"></div>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to="/profile"
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex items-center px-4 py-2 text-sm text-gray-700`}
-                      >
-                        <User className="mr-3 h-4 w-4 text-gray-500" />
-                        Profile
-                      </Link>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to="/walkthrough"
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex items-center px-4 py-2 text-sm text-gray-700`}
-                      >
-                        <HelpCircle className="mr-3 h-4 w-4 text-gray-500" />
-                        Help & Training
-                      </Link>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={logout}
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
-                      >
-                        <LogOut className="mr-3 h-4 w-4 text-gray-500" />
-                        Sign out
-                      </button>
-                    )}
-                  </Menu.Item>
-                </Menu.Items>
-              </Transition>
-            </Menu>
+            <UserButton 
+              afterSignOutUrl="/sign-in"
+              appearance={{
+                elements: {
+                  avatarBox: "h-8 w-8"
+                }
+              }}
+            />
           </div>
           
           <div className="flex items-center sm:hidden">
@@ -174,14 +112,9 @@ const Header: React.FC = () => {
         </div>
         <div className="pt-4 pb-3 border-t border-gray-200">
           <div className="flex items-center px-4">
-            <div className="flex-shrink-0">
-              <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-lg">
-                {user?.name?.charAt(0) || 'U'}
-              </div>
-            </div>
             <div className="ml-3">
-              <div className="text-base font-medium text-gray-800">{user?.name}</div>
-              <div className="text-sm font-medium text-gray-500">{user?.email}</div>
+              <div className="text-base font-medium text-gray-800">{user?.fullName}</div>
+              <div className="text-sm font-medium text-gray-500">{user?.primaryEmailAddress?.emailAddress}</div>
             </div>
             <button
               type="button"
@@ -193,28 +126,22 @@ const Header: React.FC = () => {
           </div>
           <div className="mt-3 space-y-1">
             <Link
-              to="/profile"
-              className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Your Profile
-            </Link>
-            <Link
               to="/walkthrough"
               className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
               onClick={() => setMobileMenuOpen(false)}
             >
               Help & Training
             </Link>
-            <button
-              onClick={() => {
-                logout();
-                setMobileMenuOpen(false);
+            <UserButton 
+              afterSignOutUrl="/sign-in"
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  userButtonBox: "w-full",
+                  userButtonTrigger: "w-full px-4 py-2 text-left text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                }
               }}
-              className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-            >
-              Sign out
-            </button>
+            />
           </div>
         </div>
       </div>
