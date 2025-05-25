@@ -2,12 +2,15 @@ import React, { Fragment, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
 import { Shield, Menu as MenuIcon, X, Bell, HelpCircle } from 'lucide-react';
-import { UserButton, useUser } from '@clerk/clerk-react';
+import { UserButton, useUser, useOrganization } from '@clerk/clerk-react';
 
 const Header: React.FC = () => {
   const { user } = useUser();
+  const { organization } = useOrganization();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  
+  const isAdmin = organization?.membership?.role === 'admin';
   
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -23,7 +26,7 @@ const Header: React.FC = () => {
   
   const filteredNavigation = navigation.filter(item => {
     if (item.adminOnly) {
-      return user?.publicMetadata.role === 'admin';
+      return isAdmin;
     }
     return true;
   });
@@ -70,7 +73,8 @@ const Header: React.FC = () => {
               afterSignOutUrl="/sign-in"
               appearance={{
                 elements: {
-                  avatarBox: "h-8 w-8"
+                  avatarBox: "h-8 w-8",
+                  userButtonTrigger: "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 }
               }}
             />

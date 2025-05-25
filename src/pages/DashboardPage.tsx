@@ -119,17 +119,6 @@ const DashboardPage: React.FC = () => {
         />
       </div>
       
-      {isAdmin && (
-        <div className="mt-8 flex gap-4">
-          <Link to="/users">
-            <Button>Manage Users</Button>
-          </Link>
-          <Link to="/import-export">
-            <Button variant="secondary">Import/Export Assets</Button>
-          </Link>
-        </div>
-      )}
-      
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
           <StatusChart assets={assets} />
