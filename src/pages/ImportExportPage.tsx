@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { useRole } from '../hooks/useRole';
 import { useAssets } from '../context/AssetContext';
 import PageLayout from '../components/layout/PageLayout';
 import Card, { CardContent, CardHeader } from '../components/ui/Card';
 import CsvImporter from '../components/import-export/CsvImporter';
 import CsvExporter from '../components/import-export/CsvExporter';
 import { File, Upload, FileDown } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
 
 const ImportExportPage: React.FC = () => {
-  const { user } = useAuth();
+  const { isAdmin } = useRole();
   const { importAssets, exportAssets } = useAssets();
   const [importSuccess, setImportSuccess] = useState(false);
   const [importCount, setImportCount] = useState(0);
   
   // Only allow admins to access this page
-  if (user?.role !== 'admin') {
+  if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
   

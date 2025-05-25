@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, FileText, Edit, Trash2, AlertTriangle, Clock, CheckCircle, XCircle, TestTube } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { useAuth } from '../context/AuthContext';
+import { useUser } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 import { useAssets } from '../context/AssetContext';
 import PageLayout from '../components/layout/PageLayout';
 import Button from '../components/ui/Button';
@@ -15,7 +16,8 @@ import { User } from '../types';
 const AssetDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useUser();
+  const { isAdmin, isMember } = useRole();
   const { getAssetById, updateAsset, deleteAsset, uploadDocument, markAsFailed, markAsInTesting } = useAssets();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -32,10 +34,10 @@ const AssetDetailsPage: React.FC = () => {
   
   const hasAccess = useMemo(() => {
     if (!asset || !user) return false;
-    if (user.role === 'admin') return true;
-    if (user.role === 'technician' && asset.assignedUserId === user.id) return true;
+    if (isAdmin) return true;
+    if (isMember && asset.assignedUserId === user.id) return true;
     return false;
-  }, [asset, user]);
+  }, [asset, user, isAdmin, isMember]);
   
   if (!asset || !hasAccess) {
     navigate('/assets');
@@ -54,7 +56,7 @@ const AssetDetailsPage: React.FC = () => {
       id: '2',
       name: 'Tech User',
       email: 'tech@example.com',
-      role: 'technician',
+      role: 'member',
       createdAt: new Date().toISOString(),
     },
   ];
@@ -179,7 +181,7 @@ const AssetDetailsPage: React.FC = () => {
                 <p className="text-sm text-gray-500 mt-1">{asset.assetClass}</p>
               </div>
               
-              {user?.role === 'admin' && !isEditing && (
+              {isAdmin && !isEditing && (
                 <div className="flex space-x-2">
                   {asset.status !== 'failed' && asset.status !== 'in-testing' && (
                     <Button
@@ -386,7 +388,7 @@ const AssetDetailsPage: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {user?.role === 'admin' && asset.status !== 'failed' ? (
+              {isAdmin && asset.status !== 'failed' ? (
                 <DocumentUpload
                   onUpload={handleDocumentUpload}
                   documents={asset.certificationDocuments}
@@ -403,8 +405,7 @@ const AssetDetailsPage: React.FC = () => {
                           <div className="flex items-center">
                             <FileText className="h-5 w-5 text-primary-500 mr-2" />
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{doc.fileName}
-                              </p>
+                              <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
                               <p className="text-xs text-gray-500">Uploaded on {doc.uploadDate}</p>
                               {doc.appliedToAssets && (
                                 <p className="text-xs text-gray-500 mt-1">

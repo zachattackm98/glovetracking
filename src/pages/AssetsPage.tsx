@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PlusCircle, Upload } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useUser } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 import { useAssets } from '../context/AssetContext';
 import PageLayout from '../components/layout/PageLayout';
 import AssetsList from '../components/assets/AssetsList';
@@ -10,7 +11,8 @@ import BulkUpload from '../components/assets/BulkUpload';
 import { User } from '../types';
 
 const AssetsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const { isAdmin, isMember } = useRole();
   const { assets, addAsset, bulkUploadDocument } = useAssets();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -30,7 +32,7 @@ const AssetsPage: React.FC = () => {
         id: '2',
         name: 'Tech User',
         email: 'tech@example.com',
-        role: 'technician',
+        role: 'member',
         createdAt: new Date().toISOString(),
       },
     ];
@@ -44,13 +46,13 @@ const AssetsPage: React.FC = () => {
   }, [users]);
   
   const displayedAssets = useMemo(() => {
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       return assets;
-    } else if (user?.role === 'technician') {
-      return assets.filter(asset => asset.assignedUserId === user.id);
+    } else if (isMember) {
+      return assets.filter(asset => asset.assignedUserId === user?.id);
     }
     return [];
-  }, [assets, user]);
+  }, [assets, user, isAdmin, isMember]);
   
   const handleCreateAsset = async (data: any) => {
     setIsSubmitting(true);
@@ -79,11 +81,11 @@ const AssetsPage: React.FC = () => {
   return (
     <PageLayout 
       title="Assets" 
-      description={user?.role === 'admin' 
+      description={isAdmin 
         ? "Manage all safety equipment assets" 
         : "View your assigned safety equipment"}
     >
-      {user?.role === 'admin' && (
+      {isAdmin && (
         <div className="mb-6 flex justify-between items-center">
           <div className="flex space-x-3">
             <Button
