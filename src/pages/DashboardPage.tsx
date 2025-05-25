@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Shield, Clock, AlertTriangle, CheckCircle, TestTube, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useUser, useOrganization } from '@clerk/clerk-react';
 import PageLayout from '../components/layout/PageLayout';
-import { useAuth } from '../context/AuthContext';
 import { useAssets } from '../context/AssetContext';
 import StatusChart from '../components/dashboard/StatusChart';
 import StatCard from '../components/dashboard/StatCard';
@@ -10,8 +10,12 @@ import AssetCard from '../components/assets/AssetCard';
 import Button from '../components/ui/Button';
 
 const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const { organization } = useOrganization();
   const { assets } = useAssets();
+  
+  const isAdmin = organization?.membership?.role === 'admin';
+  const isMember = organization?.membership?.role === 'member';
   
   const assetStats = useMemo(() => {
     return {
@@ -25,14 +29,14 @@ const DashboardPage: React.FC = () => {
   }, [assets]);
   
   const userAssets = useMemo(() => {
-    if (user?.role === 'technician') {
-      return assets.filter(asset => asset.assignedUserId === user.id);
+    if (isMember) {
+      return assets.filter(asset => asset.assignedUserId === user?.id);
     }
     return [];
-  }, [assets, user]);
+  }, [assets, user, isMember]);
   
   const assetsNeedingAttention = useMemo(() => {
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       return assets
         .filter(asset => asset.status === 'expired' || asset.status === 'near-due')
         .sort((a, b) => {
@@ -46,7 +50,7 @@ const DashboardPage: React.FC = () => {
         .slice(0, 3);
     }
     return [];
-  }, [assets, user]);
+  }, [assets, isAdmin]);
 
   const assetsInTesting = useMemo(() => {
     return assets
@@ -120,7 +124,7 @@ const DashboardPage: React.FC = () => {
           <StatusChart assets={assets} />
         </div>
         <div className="lg:col-span-2">
-          {user?.role === 'admin' && (
+          {isAdmin && (
             <div className="space-y-6">
               {assetsInTesting.length > 0 && (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -260,7 +264,7 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
           
-          {user?.role === 'technician' && (
+          {isMember && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-5">
                 <div className="flex justify-between items-center mb-4">
@@ -276,7 +280,12 @@ const DashboardPage: React.FC = () => {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {userAssets.slice(0, 4).map(asset => (
-                      <AssetCard key={asset.id} asset={asset} userName={user.name} showActions={false} />
+                      <AssetCard 
+                        key={asset.id} 
+                        asset={asset} 
+                        userName={user?.fullName || 'Unknown'} 
+                        showActions={false} 
+                      />
                     ))}
                   </div>
                 )}
