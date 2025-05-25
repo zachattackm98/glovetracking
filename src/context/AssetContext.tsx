@@ -58,19 +58,22 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const orgId = organization?.id;
 
   useEffect(() => {
-    if (user && orgId) {
-      const storedAssets = localStorage.getItem('safeguard_assets');
-      if (storedAssets) {
-        const parsedAssets = JSON.parse(storedAssets);
-        // Filter assets by organization and user role
-        const filteredAssets = parsedAssets.filter((asset: Asset) => {
-          const belongsToOrg = asset.orgId === orgId;
-          if (!belongsToOrg) return false;
-          if (isAdmin) return true;
-          return asset.assignedUserId === user.id;
-        });
-        setAssets(filteredAssets);
-      }
+    if (!user || !orgId) {
+      console.warn('No user or organization found. Cannot load or manipulate assets.');
+      return;
+    }
+
+    const storedAssets = localStorage.getItem('safeguard_assets');
+    if (storedAssets) {
+      const parsedAssets = JSON.parse(storedAssets);
+      // Filter assets by organization and user role
+      const filteredAssets = parsedAssets.filter((asset: Asset) => {
+        const belongsToOrg = asset.orgId === orgId;
+        if (!belongsToOrg) return false;
+        if (isAdmin) return true;
+        return asset.assignedUserId === user.id;
+      });
+      setAssets(filteredAssets);
     }
   }, [user, orgId, isAdmin]);
 
@@ -81,7 +84,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [assets]);
 
   const addAsset = (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
-    if (!orgId) return;
+    if (!orgId || !user) {
+      console.warn('Cannot add asset: Missing organization or user data');
+      return;
+    }
 
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
@@ -99,6 +105,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateAsset = (id: string, assetData: Partial<Asset>) => {
+    if (!orgId || !user) {
+      console.warn('Cannot update asset: Missing organization or user data');
+      return;
+    }
+
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
         if (asset.id === id && asset.orgId === orgId) {
@@ -120,11 +131,19 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteAsset = (id: string) => {
+    if (!orgId || !user) {
+      console.warn('Cannot delete asset: Missing organization or user data');
+      return;
+    }
+
     setAssets(prevAssets => prevAssets.filter(asset => !(asset.id === id && asset.orgId === orgId)));
   };
 
   const uploadDocument = async (assetId: string, file: File) => {
-    if (!user || !orgId) return;
+    if (!orgId || !user) {
+      console.warn('Cannot upload document: Missing organization or user data');
+      return;
+    }
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -154,7 +173,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const bulkUploadDocument = async (assetIds: string[], file: File) => {
-    if (!user || !orgId) return;
+    if (!orgId || !user) {
+      console.warn('Cannot bulk upload documents: Missing organization or user data');
+      return;
+    }
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -185,6 +207,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const markAsFailed = (id: string, reason: string) => {
+    if (!orgId || !user) {
+      console.warn('Cannot mark asset as failed: Missing organization or user data');
+      return;
+    }
+
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
         if (asset.id === id && asset.orgId === orgId) {
@@ -201,6 +228,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const markAsInTesting = (id: string) => {
+    if (!orgId || !user) {
+      console.warn('Cannot mark asset as in testing: Missing organization or user data');
+      return;
+    }
+
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
         if (asset.id === id && asset.orgId === orgId) {
@@ -216,6 +248,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const getAssetsByUser = (userId: string) => {
+    if (!orgId || !user) {
+      console.warn('Cannot get assets by user: Missing organization or user data');
+      return [];
+    }
+
     return assets.filter(asset => 
       asset.orgId === orgId && 
       asset.assignedUserId === userId
@@ -223,6 +260,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const getAssetById = (id: string) => {
+    if (!orgId || !user) {
+      console.warn('Cannot get asset by ID: Missing organization or user data');
+      return undefined;
+    }
+
     return assets.find(asset => 
       asset.id === id && 
       asset.orgId === orgId
@@ -230,7 +272,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const importAssets = (newAssets: Partial<Asset>[]) => {
-    if (!orgId) return;
+    if (!orgId || !user) {
+      console.warn('Cannot import assets: Missing organization or user data');
+      return;
+    }
 
     const processedAssets = newAssets.map(asset => {
       if (!asset.lastCertificationDate) {
@@ -260,6 +305,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const exportAssets = () => {
+    if (!orgId || !user) {
+      console.warn('Cannot export assets: Missing organization or user data');
+      return '';
+    }
+
     const orgAssets = assets.filter(asset => asset.orgId === orgId);
     const headers = 'id,serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate,nextCertificationDate,status,failureDate,failureReason,testingStartDate,orgId\n';
     const csvContent = orgAssets.map(asset => {
