@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
 import { Shield, Menu as MenuIcon, X, Bell, HelpCircle } from 'lucide-react';
 import { UserButton, useUser } from '@clerk/clerk-react';
-import { useRole } from '../hooks/useRole';
+import { useRole } from '../../hooks/useRole';
 
 const Header: React.FC = () => {
   const { user } = useUser();
