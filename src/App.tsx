@@ -9,6 +9,7 @@ import AssetsPage from './pages/AssetsPage';
 import AssetDetailsPage from './pages/AssetDetailsPage';
 import ImportExportPage from './pages/ImportExportPage';
 import WalkthroughPage from './pages/WalkthroughPage';
+import UsersPage from './pages/UsersPage';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
           {/* Admin-only routes */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route path="/import-export" element={<ImportExportPage />} />
+            <Route path="/users" element={<UsersPage />} />
           </Route>
           
           {/* Redirect to dashboard or sign in */}
