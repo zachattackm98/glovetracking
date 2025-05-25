@@ -1,16 +1,17 @@
 import { useUser, useOrganization } from '@clerk/clerk-react';
 
 export const useRole = () => {
-  const { user } = useUser();
-  const { organization, membership } = useOrganization();
+  const { user, isLoaded: isUserLoaded } = useUser();
+  const { organization, membership, isLoaded: isOrgLoaded } = useOrganization();
   
-  // Use org role if available, otherwise fall back to user metadata
-  const role = membership?.role || (user?.publicMetadata?.role as string);
+  // Debug logging
+  console.log('Organization Role:', membership?.role);
+  console.log('Organization:', organization?.id);
   
   return {
-    role,
-    isAdmin: role === 'admin',
-    isMember: role === 'member' || role === 'technician',
-    isLoading: !user,
+    role: membership?.role || 'member',
+    isAdmin: membership?.role === 'admin',
+    isMember: membership?.role === 'member',
+    isLoading: !isUserLoaded || !isOrgLoaded,
   };
 };

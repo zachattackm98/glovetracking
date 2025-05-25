@@ -11,6 +11,9 @@ const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   
+  // Debug logging
+  console.log('Is Admin:', isAdmin);
+  
   const isActive = (path: string) => {
     return location.pathname === path;
   };
