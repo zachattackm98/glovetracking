@@ -2,15 +2,14 @@ import React, { Fragment, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
 import { Shield, Menu as MenuIcon, X, Bell, HelpCircle } from 'lucide-react';
-import { UserButton, useUser, useOrganization } from '@clerk/clerk-react';
+import { UserButton, useUser } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 
 const Header: React.FC = () => {
   const { user } = useUser();
-  const { organization } = useOrganization();
+  const { isAdmin } = useRole();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  
-  const isAdmin = organization?.membership?.role === 'admin';
   
   const isActive = (path: string) => {
     return location.pathname === path;

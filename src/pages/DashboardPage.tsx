@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { Shield, Clock, AlertTriangle, CheckCircle, TestTube, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useUser, useOrganization } from '@clerk/clerk-react';
-import PageLayout from '../components/layout/PageLayout';
+import { useUser } from '@clerk/clerk-react';
+import { useRole } from '../hooks/useRole';
 import { useAssets } from '../context/AssetContext';
+import PageLayout from '../components/layout/PageLayout';
 import StatusChart from '../components/dashboard/StatusChart';
 import StatCard from '../components/dashboard/StatCard';
 import AssetCard from '../components/assets/AssetCard';
@@ -11,11 +12,8 @@ import Button from '../components/ui/Button';
 
 const DashboardPage: React.FC = () => {
   const { user } = useUser();
-  const { organization } = useOrganization();
+  const { isAdmin, isMember } = useRole();
   const { assets } = useAssets();
-  
-  const isAdmin = organization?.membership?.role === 'admin';
-  const isMember = organization?.membership?.role === 'member';
   
   const assetStats = useMemo(() => {
     return {
