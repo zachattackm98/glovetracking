@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, User, CertificationDocument } from '../types';
-import { useAuth } from './AuthContext';
+import { useUser, useOrganization } from '@clerk/clerk-react';
 
 interface AssetContextType {
   assets: Asset[];
-  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments'>) => void;
+  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => void;
   updateAsset: (id: string, asset: Partial<Asset>) => void;
   deleteAsset: (id: string) => void;
   uploadDocument: (assetId: string, file: File) => Promise<void>;
@@ -51,17 +51,28 @@ const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
 };
 
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const { organization } = useOrganization();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const isAdmin = organization?.membership?.role === 'admin';
+  const orgId = organization?.id;
 
   useEffect(() => {
-    if (user) {
+    if (user && orgId) {
       const storedAssets = localStorage.getItem('safeguard_assets');
       if (storedAssets) {
-        setAssets(JSON.parse(storedAssets));
+        const parsedAssets = JSON.parse(storedAssets);
+        // Filter assets by organization and user role
+        const filteredAssets = parsedAssets.filter((asset: Asset) => {
+          const belongsToOrg = asset.orgId === orgId;
+          if (!belongsToOrg) return false;
+          if (isAdmin) return true;
+          return asset.assignedUserId === user.id;
+        });
+        setAssets(filteredAssets);
       }
     }
-  }, [user]);
+  }, [user, orgId, isAdmin]);
 
   useEffect(() => {
     if (assets.length > 0) {
@@ -69,13 +80,16 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [assets]);
 
-  const addAsset = (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments'>) => {
+  const addAsset = (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
+    if (!orgId) return;
+
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
     
     const newAsset: Asset = {
       ...assetData,
       id: uuidv4(),
+      orgId,
       status,
       nextCertificationDate,
       certificationDocuments: [],
@@ -87,7 +101,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateAsset = (id: string, assetData: Partial<Asset>) => {
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
-        if (asset.id === id) {
+        if (asset.id === id && asset.orgId === orgId) {
           const updatedAsset = { ...asset, ...assetData };
           
           if (assetData.lastCertificationDate && !['failed', 'in-testing'].includes(updatedAsset.status)) {
@@ -105,43 +119,12 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const markAsFailed = (id: string, reason: string) => {
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id) {
-          return {
-            ...asset,
-            status: 'failed',
-            failureDate: format(new Date(), 'yyyy-MM-dd'),
-            failureReason: reason,
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
-  const markAsInTesting = (id: string) => {
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id) {
-          return {
-            ...asset,
-            status: 'in-testing',
-            testingStartDate: format(new Date(), 'yyyy-MM-dd'),
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
   const deleteAsset = (id: string) => {
-    setAssets(prevAssets => prevAssets.filter(asset => asset.id !== id));
+    setAssets(prevAssets => prevAssets.filter(asset => !(asset.id === id && asset.orgId === orgId)));
   };
 
   const uploadDocument = async (assetId: string, file: File) => {
-    if (!user) return;
+    if (!user || !orgId) return;
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -156,7 +139,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
-        if (asset.id === assetId) {
+        if (asset.id === assetId && asset.orgId === orgId) {
           return {
             ...asset,
             lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
@@ -171,7 +154,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const bulkUploadDocument = async (assetIds: string[], file: File) => {
-    if (!user) return;
+    if (!user || !orgId) return;
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -187,7 +170,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     setAssets(prevAssets => {
       return prevAssets.map(asset => {
-        if (assetIds.includes(asset.id)) {
+        if (assetIds.includes(asset.id) && asset.orgId === orgId) {
           return {
             ...asset,
             lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
@@ -201,15 +184,54 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const markAsFailed = (id: string, reason: string) => {
+    setAssets(prevAssets => {
+      return prevAssets.map(asset => {
+        if (asset.id === id && asset.orgId === orgId) {
+          return {
+            ...asset,
+            status: 'failed',
+            failureDate: format(new Date(), 'yyyy-MM-dd'),
+            failureReason: reason,
+          };
+        }
+        return asset;
+      });
+    });
+  };
+
+  const markAsInTesting = (id: string) => {
+    setAssets(prevAssets => {
+      return prevAssets.map(asset => {
+        if (asset.id === id && asset.orgId === orgId) {
+          return {
+            ...asset,
+            status: 'in-testing',
+            testingStartDate: format(new Date(), 'yyyy-MM-dd'),
+          };
+        }
+        return asset;
+      });
+    });
+  };
+
   const getAssetsByUser = (userId: string) => {
-    return assets.filter(asset => asset.assignedUserId === userId);
+    return assets.filter(asset => 
+      asset.orgId === orgId && 
+      asset.assignedUserId === userId
+    );
   };
 
   const getAssetById = (id: string) => {
-    return assets.find(asset => asset.id === id);
+    return assets.find(asset => 
+      asset.id === id && 
+      asset.orgId === orgId
+    );
   };
 
   const importAssets = (newAssets: Partial<Asset>[]) => {
+    if (!orgId) return;
+
     const processedAssets = newAssets.map(asset => {
       if (!asset.lastCertificationDate) {
         throw new Error('Assets must include lastCertificationDate');
@@ -222,6 +244,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       return {
         id: uuidv4(),
+        orgId,
         serialNumber: asset.serialNumber || `SN-${uuidv4().substring(0, 8)}`,
         assetClass: asset.assetClass || 'Class 1',
         assignedUserId: asset.assignedUserId || null,
@@ -237,9 +260,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const exportAssets = () => {
-    const headers = 'id,serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate,nextCertificationDate,status,failureDate,failureReason,testingStartDate\n';
-    const csvContent = assets.map(asset => {
-      return `${asset.id},${asset.serialNumber},${asset.assetClass},${asset.assignedUserId || ''},${asset.issueDate},${asset.lastCertificationDate},${asset.nextCertificationDate},${asset.status},${asset.failureDate || ''},${asset.failureReason || ''},${asset.testingStartDate || ''}`;
+    const orgAssets = assets.filter(asset => asset.orgId === orgId);
+    const headers = 'id,serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate,nextCertificationDate,status,failureDate,failureReason,testingStartDate,orgId\n';
+    const csvContent = orgAssets.map(asset => {
+      return `${asset.id},${asset.serialNumber},${asset.assetClass},${asset.assignedUserId || ''},${asset.issueDate},${asset.lastCertificationDate},${asset.nextCertificationDate},${asset.status},${asset.failureDate || ''},${asset.failureReason || ''},${asset.testingStartDate || ''},${asset.orgId}`;
     }).join('\n');
     
     return headers + csvContent;
