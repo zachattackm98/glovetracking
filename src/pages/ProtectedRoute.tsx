@@ -1,17 +1,23 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
 
 interface ProtectedRouteProps {
-  allowedRoles?: string[];
+  allowedRoles?: ('admin' | 'member')[];
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   allowedRoles = []
 }) => {
-  const { isLoaded, userId } = useAuth();
-  const { role, isLoading } = useRole();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { isAdmin, isMember, isLoading } = useRole();
+  
+  // Debug logging
+  console.log('Protected Route - Auth State:', { isLoaded, isSignedIn });
+  console.log('Protected Route - User:', user?.id);
+  console.log('Protected Route - Roles:', { isAdmin, isMember });
   
   // Show loading state
   if (!isLoaded || isLoading) {
@@ -22,14 +28,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
   
-  // If not authenticated, redirect to login
-  if (!userId) {
+  // If not authenticated, redirect to sign in
+  if (!isSignedIn) {
     return <Navigate to="/sign-in" replace />;
   }
   
-  // If roles are specified and user doesn't have required role, redirect to dashboard
-  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    return <Navigate to="/dashboard" replace />;
+  // If roles are specified, check permissions
+  if (allowedRoles.length > 0) {
+    const hasRequiredRole = allowedRoles.some(role => {
+      if (role === 'admin') return isAdmin;
+      if (role === 'member') return isMember;
+      return false;
+    });
+    
+    if (!hasRequiredRole) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
   
   // User is authenticated and has required role (if specified)
