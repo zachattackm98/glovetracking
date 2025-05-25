@@ -15,6 +15,7 @@ export type GloveColor = 'red' | 'yellow' | 'black' | 'beige';
 
 export interface Asset {
   id: string;
+  orgId: string;
   serialNumber: string;
   assetClass: AssetClass;
   assignedUserId: string | null;
