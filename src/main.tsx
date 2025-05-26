@@ -12,7 +12,10 @@ if (!clerkPubKey) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={clerkPubKey}>
+    <ClerkProvider 
+      publishableKey={clerkPubKey}
+      navigate={(to) => window.location.href = to}
+    >
       <App />
     </ClerkProvider>
   </StrictMode>
