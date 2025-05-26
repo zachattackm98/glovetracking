@@ -3,7 +3,7 @@ import { Database } from './database.types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJudXZsZWlveWRzdnlvdWh2ZWFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODE2NTEzOSwiZXhwIjoyMDYzNzQxMTM5fQ.U2MrNJa8NiudbOOebUHCjKn8Nvu5VHoVehnLcjyOQWc';
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
@@ -19,3 +19,21 @@ export const adminSupabase = createClient<Database>(supabaseUrl, supabaseService
     persistSession: false,
   },
 });
+
+// Function to get Supabase client with Clerk session
+export const getSupabaseClient = async () => {
+  try {
+    const token = await fetch('https://your-clerk-frontend-api/session').then(r => r.json());
+    
+    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error getting Clerk session:', error);
+    return supabase; // Fall back to anonymous client
+  }
+};
