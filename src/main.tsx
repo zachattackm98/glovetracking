@@ -1,7 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
-import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
@@ -13,14 +12,8 @@ if (!clerkPubKey) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <ClerkProvider 
-        publishableKey={clerkPubKey}
-        afterSignInUrl="/dashboard"
-        afterSignUpUrl="/dashboard"
-      >
-        <App />
-      </ClerkProvider>
-    </BrowserRouter>
+    <ClerkProvider publishableKey={clerkPubKey}>
+      <App />
+    </ClerkProvider>
   </StrictMode>
 );
