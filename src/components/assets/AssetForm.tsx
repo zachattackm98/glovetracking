@@ -19,13 +19,13 @@ const AssetForm: React.FC<AssetFormProps> = ({
   const { organization } = useOrganization();
   const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
   const [formData, setFormData] = useState<Partial<Asset>>({
-    serial_number: '',
-    asset_class: 'Class 1',
-    assigned_user_id: null,
-    issue_date: new Date().toISOString().substring(0, 10),
-    last_certification_date: new Date().toISOString().substring(0, 10),
-    glove_size: undefined,
-    glove_color: undefined,
+    serialNumber: '',
+    assetClass: 'Class 1',
+    assignedUserId: null,
+    issueDate: new Date().toISOString().substring(0, 10),
+    lastCertificationDate: new Date().toISOString().substring(0, 10),
+    gloveSize: undefined,
+    gloveColor: undefined,
     ...initialData,
   });
 
@@ -72,30 +72,30 @@ const AssetForm: React.FC<AssetFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="serial_number" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700">
             Serial Number / Asset ID *
           </label>
           <input
             type="text"
-            id="serial_number"
-            name="serial_number"
+            id="serialNumber"
+            name="serialNumber"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.serial_number || ''}
+            value={formData.serialNumber || ''}
             onChange={handleChange}
           />
         </div>
 
         <div>
-          <label htmlFor="asset_class" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="assetClass" className="block text-sm font-medium text-gray-700">
             Asset Class *
           </label>
           <select
-            id="asset_class"
-            name="asset_class"
+            id="assetClass"
+            name="assetClass"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.asset_class || ''}
+            value={formData.assetClass || ''}
             onChange={handleChange}
           >
             <option value="">Select Class</option>
@@ -108,14 +108,14 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="glove_size" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="gloveSize" className="block text-sm font-medium text-gray-700">
             Glove Size
           </label>
           <select
-            id="glove_size"
-            name="glove_size"
+            id="gloveSize"
+            name="gloveSize"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.glove_size || ''}
+            value={formData.gloveSize || ''}
             onChange={handleChange}
           >
             <option value="">Select Size</option>
@@ -128,14 +128,14 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="glove_color" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="gloveColor" className="block text-sm font-medium text-gray-700">
             Glove Color
           </label>
           <select
-            id="glove_color"
-            name="glove_color"
+            id="gloveColor"
+            name="gloveColor"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.glove_color || ''}
+            value={formData.gloveColor || ''}
             onChange={handleChange}
           >
             <option value="">Select Color</option>
@@ -148,14 +148,14 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="assigned_user_id" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="assignedUserId" className="block text-sm font-medium text-gray-700">
             Assigned To
           </label>
           <select
-            id="assigned_user_id"
-            name="assigned_user_id"
+            id="assignedUserId"
+            name="assignedUserId"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.assigned_user_id || ''}
+            value={formData.assignedUserId || ''}
             onChange={handleChange}
           >
             <option value="">Unassigned</option>
@@ -168,47 +168,47 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="issue_date" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="issueDate" className="block text-sm font-medium text-gray-700">
             Issue Date *
           </label>
           <input
             type="date"
-            id="issue_date"
-            name="issue_date"
+            id="issueDate"
+            name="issueDate"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.issue_date?.substring(0, 10) || ''}
+            value={formData.issueDate?.substring(0, 10) || ''}
             onChange={handleChange}
           />
         </div>
 
         <div>
-          <label htmlFor="last_certification_date" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="lastCertificationDate" className="block text-sm font-medium text-gray-700">
             Last Certification Date *
           </label>
           <input
             type="date"
-            id="last_certification_date"
-            name="last_certification_date"
+            id="lastCertificationDate"
+            name="lastCertificationDate"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.last_certification_date?.substring(0, 10) || ''}
+            value={formData.lastCertificationDate?.substring(0, 10) || ''}
             onChange={handleChange}
           />
         </div>
 
         {formData.status === 'failed' && (
           <div>
-            <label htmlFor="failure_reason" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="failureReason" className="block text-sm font-medium text-gray-700">
               Failure Reason *
             </label>
             <textarea
-              id="failure_reason"
-              name="failure_reason"
+              id="failureReason"
+              name="failureReason"
               required
               rows={3}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-              value={formData.failure_reason || ''}
+              value={formData.failureReason || ''}
               onChange={handleChange}
               placeholder="Describe the reason for failure..."
             />
