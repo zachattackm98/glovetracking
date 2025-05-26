@@ -3,7 +3,7 @@ import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, CertificationDocument } from '../types';
 import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { supabase, adminSupabase, getSupabaseClient } from '../lib/supabase';
+import { supabase, adminSupabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
 interface AssetContextType {
@@ -89,7 +89,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
-      const client = isAdmin ? adminSupabase : await getSupabaseClient();
+      const client = isAdmin ? adminSupabase : supabase;
 
       const { data: assetsData, error: assetsError } = await client
         .from('assets')
@@ -134,7 +134,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchAssets();
   }, [organization?.id, user]);
 
-  const getClient = async () => isAdmin ? adminSupabase : await getSupabaseClient();
+  const getClient = () => isAdmin ? adminSupabase : supabase;
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
     if (!organization?.id) throw new Error('No organization found');
@@ -142,8 +142,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('assets')
       .insert({
         org_id: organization.id,
@@ -184,8 +183,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateData.status = calculateAssetStatus(nextCertificationDate);
     }
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('assets')
       .update(updateData)
       .eq('id', id)
@@ -202,8 +200,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteAsset = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { error } = await client
+    const { error } = await getClient()
       .from('assets')
       .delete()
       .eq('id', id)
@@ -219,8 +216,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const fileUrl = URL.createObjectURL(file);
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('certification_documents')
       .insert({
         asset_id: assetId,
@@ -265,8 +261,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       org_id: organization.id,
     }));
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('certification_documents')
       .insert(documents)
       .select();
@@ -298,8 +293,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const markAsFailed = async (id: string, reason: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('assets')
       .update({
         status: 'failed',
@@ -320,8 +314,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const markAsInTesting = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('assets')
       .update({
         status: 'in-testing',
@@ -373,8 +366,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     });
 
-    const client = await getClient();
-    const { data, error } = await client
+    const { data, error } = await getClient()
       .from('assets')
       .insert(assetsToInsert)
       .select();

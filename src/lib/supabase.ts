@@ -3,45 +3,19 @@ import { Database } from './database.types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJudXZsZWlveWRzdnlvdWh2ZWFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODE2NTEzOSwiZXhwIjoyMDYzNzQxMTM5fQ.U2MrNJa8NiudbOOebUHCjKn8Nvu5VHoVehnLcjyOQWc';
 
-if (!supabaseUrl) {
-  throw new Error('Missing VITE_SUPABASE_URL');
-}
-
-if (!supabaseAnonKey) {
-  throw new Error('Missing VITE_SUPABASE_ANON_KEY');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
 }
 
 // Regular client for authenticated users
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Admin client with service role key that bypasses RLS
-export const adminSupabase = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceKey || supabaseAnonKey, // Fallback to anon key if service key not available
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
-
-// Function to get Supabase client with Clerk session
-export const getSupabaseClient = async () => {
-  try {
-    const token = await fetch('/.netlify/functions/get-supabase-token').then(r => r.text());
-    
-    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    });
-  } catch (error) {
-    console.error('Error getting Supabase token:', error);
-    return supabase; // Fall back to anonymous client
-  }
-};
+export const adminSupabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
