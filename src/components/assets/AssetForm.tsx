@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Asset, AssetClass, User, GloveSize, GloveColor } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { useOrganization } from '@clerk/clerk-react';
+import { Asset, AssetClass, GloveSize, GloveColor } from '../../types';
 import Button from '../ui/Button';
 
 interface AssetFormProps {
-  users: User[];
   initialData?: Partial<Asset>;
   onSubmit: (data: Partial<Asset>) => void;
   onCancel?: () => void;
@@ -11,12 +11,15 @@ interface AssetFormProps {
 }
 
 const AssetForm: React.FC<AssetFormProps> = ({
-  users,
   initialData = {},
   onSubmit,
   onCancel,
   isSubmitting = false,
 }) => {
+  const { organization, isLoaded } = useOrganization();
+  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+  
   const [formData, setFormData] = useState<Partial<Asset>>({
     serialNumber: '',
     assetClass: 'Class 1',
@@ -27,6 +30,30 @@ const AssetForm: React.FC<AssetFormProps> = ({
     gloveColor: undefined,
     ...initialData,
   });
+
+  useEffect(() => {
+    const loadMembers = async () => {
+      if (!organization || !isLoaded) return;
+      
+      try {
+        const memberships = await organization.getMemberships();
+        const membersList = memberships
+          .filter(member => member.role === 'org:member')
+          .map(member => ({
+            id: member.publicUserData?.userId || '',
+            name: `${member.publicUserData?.firstName || ''} ${member.publicUserData?.lastName || ''}`.trim() || member.publicUserData?.identifier || 'Unknown User'
+          }));
+        
+        setMembers(membersList);
+      } catch (error) {
+        console.error('Error loading members:', error);
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    };
+
+    loadMembers();
+  }, [organization, isLoaded]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -134,16 +161,18 @@ const AssetForm: React.FC<AssetFormProps> = ({
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             value={formData.assignedUserId || ''}
             onChange={handleChange}
+            disabled={isLoadingMembers}
           >
             <option value="">Unassigned</option>
-            {users
-              .filter(user => user.role === 'technician')
-              .map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
+            {members.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
           </select>
+          {isLoadingMembers && (
+            <p className="mt-1 text-sm text-gray-500">Loading members...</p>
+          )}
         </div>
 
         <div>
@@ -201,6 +230,7 @@ const AssetForm: React.FC<AssetFormProps> = ({
             type="button"
             variant="outline"
             onClick={onCancel}
+            disabled={isSubmitting}
           >
             Cancel
           </Button>
@@ -208,7 +238,7 @@ const AssetForm: React.FC<AssetFormProps> = ({
         <Button
           type="submit"
           isLoading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isLoadingMembers}
         >
           {initialData.id ? 'Update Asset' : 'Create Asset'}
         </Button>
