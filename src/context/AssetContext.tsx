@@ -138,23 +138,8 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
 
-    const assetPayload = {
-      org_id: organization.id,
-      serial_number: assetData.serialNumber,
-      asset_class: assetData.assetClass,
-      glove_size: assetData.gloveSize,
-      glove_color: assetData.gloveColor,
-      issue_date: assetData.issueDate,
-      last_certification_date: assetData.lastCertificationDate,
-      next_certification_date: nextCertificationDate,
-      status,
-      assigned_user_id: assetData.assignedUserId,
-    };
-
-    // Call the Edge Function for admin operations
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`,
-      {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
@@ -162,18 +147,30 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         },
         body: JSON.stringify({
           operation: 'addAsset',
-          data: assetPayload,
+          data: {
+            org_id: organization.id,
+            serial_number: assetData.serialNumber,
+            asset_class: assetData.assetClass,
+            glove_size: assetData.gloveSize,
+            glove_color: assetData.gloveColor,
+            issue_date: assetData.issueDate,
+            last_certification_date: assetData.lastCertificationDate,
+            next_certification_date: nextCertificationDate,
+            status,
+            assigned_user_id: assetData.assignedUserId,
+          },
         }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add asset');
       }
-    );
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to add asset');
+      await fetchAssets();
+    } catch (error: any) {
+      console.error('Error adding asset:', error);
+      throw error;
     }
-
-    // Refresh assets after successful addition
-    await fetchAssets();
   };
 
   const updateAsset = async (id: string, assetData: Partial<Asset>) => {
