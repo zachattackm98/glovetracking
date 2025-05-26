@@ -1,0 +1,12 @@
+Review my Supabase SQL schema and RLS policies to ensure they are fully compatible with the following Clerk JWT claims:
+
+{
+  "org_id": "{{organization.id}}",
+  "user_id": "{{user.id}}",
+  "org_role": "{{organization.role}}",
+  "org_slug": "{{organization.slug}}"
+}
+
+- All table columns, especially for user and organization references, should use the same names and types as the JWT claims (`org_id`, `user_id`, `org_role`, `org_slug`).
+- All RLS policies should reference these claims using `auth.jwt()->>'org_id'`, `auth.jwt()->>'user_id'`, `auth.jwt()->>'org_role'`, and `auth.jwt()->>'org_slug'` as appropriate.
+- Please point out any mismatches or improvements needed for full compatibility. 

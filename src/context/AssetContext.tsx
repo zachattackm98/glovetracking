@@ -1,346 +1,224 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { useUser, useOrganization, useAuth } from '@clerk/clerk-react';
+import { createSupabaseClient } from '../lib/supabase';
+import type { Database } from '../lib/supabase';
 import { format, addMonths } from 'date-fns';
-import { Asset, AssetStatus, CertificationDocument } from '../types';
-import { useUser } from '@clerk/clerk-react';
-import { useRole } from '../hooks/useRole';
+import { AssetStatus } from '../types';
+
+type Asset = Database['public']['Tables']['assets']['Row'];
+type AssetInsert = Database['public']['Tables']['assets']['Insert'];
+type AssetUpdate = Database['public']['Tables']['assets']['Update'];
 
 interface AssetContextType {
   assets: Asset[];
-  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => void;
-  updateAsset: (id: string, asset: Partial<Asset>) => void;
-  deleteAsset: (id: string) => void;
-  uploadDocument: (assetId: string, file: File) => Promise<void>;
-  bulkUploadDocument: (assetIds: string[], file: File) => Promise<void>;
-  markAsFailed: (id: string, reason: string) => void;
-  markAsInTesting: (id: string) => void;
-  getAssetsByUser: (userId: string) => Asset[];
-  getAssetById: (id: string) => Asset | undefined;
-  importAssets: (assets: Partial<Asset>[]) => void;
-  exportAssets: () => string;
+  loading: boolean;
+  error: Error | null;
+  addAsset: (asset: AssetInsert) => Promise<void>;
+  updateAsset: (id: string, asset: AssetUpdate) => Promise<void>;
+  deleteAsset: (id: string) => Promise<void>;
+  importAssets: (assets: AssetInsert[]) => Promise<void>;
+  exportAssets: () => Promise<Asset[]>;
 }
 
-const AssetContext = createContext<AssetContextType>({
-  assets: [],
-  addAsset: () => {},
-  updateAsset: () => {},
-  deleteAsset: () => {},
-  uploadDocument: async () => {},
-  bulkUploadDocument: async () => {},
-  markAsFailed: () => {},
-  markAsInTesting: () => {},
-  getAssetsByUser: () => [],
-  getAssetById: () => undefined,
-  importAssets: () => {},
-  exportAssets: () => '',
-});
-
-export const useAssets = () => useContext(AssetContext);
-
-const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
-  const now = new Date();
-  const certDate = new Date(nextCertificationDate);
-  const daysUntilExpiration = Math.floor((certDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  
-  if (daysUntilExpiration < 0) {
-    return 'expired';
-  } else if (daysUntilExpiration <= 30) {
-    return 'near-due';
-  } else {
-    return 'active';
-  }
-};
+const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useUser();
-  const { isAdmin, orgId } = useRole();
   const [assets, setAssets] = useState<Asset[]>([]);
-
-  // Debug logging
-  console.log('Asset Context - Is Admin:', isAdmin);
-  console.log('Asset Context - Org ID:', orgId);
-  console.log('Asset Context - User ID:', user?.id);
-
-  useEffect(() => {
-    if (!user || !orgId) {
-      console.warn('No user or organization found. Cannot load assets.');
-      return;
-    }
-
-    const storedAssets = localStorage.getItem('safeguard_assets');
-    if (storedAssets) {
-      const parsedAssets = JSON.parse(storedAssets);
-      // Filter assets by organization and user role
-      const filteredAssets = parsedAssets.filter((asset: Asset) => {
-        const belongsToOrg = asset.orgId === orgId;
-        if (!belongsToOrg) return false;
-        if (isAdmin) return true;
-        return asset.assignedUserId === user.id;
-      });
-      setAssets(filteredAssets);
-    }
-  }, [user, orgId, isAdmin]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { user } = useUser();
+  const { organization } = useOrganization();
+  const { getToken } = useAuth();
 
   useEffect(() => {
-    if (assets.length > 0) {
-      localStorage.setItem('safeguard_assets', JSON.stringify(assets));
+    if (user && organization) {
+      fetchAssets();
     }
-  }, [assets]);
+  }, [user, organization]);
 
-  const addAsset = (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
-    if (!orgId || !user) {
-      console.warn('Cannot add asset: Missing organization or user data');
-      return;
-    }
-
-    const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
-    const status = calculateAssetStatus(nextCertificationDate);
-    
-    const newAsset: Asset = {
-      ...assetData,
-      id: uuidv4(),
-      orgId,
-      status,
-      nextCertificationDate,
-      certificationDocuments: [],
-    };
-    
-    setAssets(prevAssets => [...prevAssets, newAsset]);
-  };
-
-  const updateAsset = (id: string, assetData: Partial<Asset>) => {
-    if (!orgId || !user) {
-      console.warn('Cannot update asset: Missing organization or user data');
-      return;
-    }
-
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          const updatedAsset = { ...asset, ...assetData };
-          
-          if (assetData.lastCertificationDate && !['failed', 'in-testing'].includes(updatedAsset.status)) {
-            updatedAsset.nextCertificationDate = format(
-              addMonths(new Date(assetData.lastCertificationDate), 6),
-              'yyyy-MM-dd'
-            );
-            updatedAsset.status = calculateAssetStatus(updatedAsset.nextCertificationDate);
-          }
-          
-          return updatedAsset;
-        }
-        return asset;
-      });
-    });
-  };
-
-  const deleteAsset = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot delete asset: Missing organization or user data');
-      return;
-    }
-
-    setAssets(prevAssets => prevAssets.filter(asset => !(asset.id === id && asset.orgId === orgId)));
-  };
-
-  const uploadDocument = async (assetId: string, file: File) => {
-    if (!orgId || !user) {
-      console.warn('Cannot upload document: Missing organization or user data');
-      return;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newDocument: CertificationDocument = {
-      id: uuidv4(),
-      assetId,
-      fileName: file.name,
-      fileUrl: URL.createObjectURL(file),
-      uploadDate: format(new Date(), 'yyyy-MM-dd'),
-      uploadedBy: user.id,
-    };
-    
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === assetId && asset.orgId === orgId) {
-          return {
-            ...asset,
-            lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
-            nextCertificationDate: format(addMonths(new Date(), 6), 'yyyy-MM-dd'),
-            status: 'active',
-            certificationDocuments: [...asset.certificationDocuments, newDocument],
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
-  const bulkUploadDocument = async (assetIds: string[], file: File) => {
-    if (!orgId || !user) {
-      console.warn('Cannot bulk upload documents: Missing organization or user data');
-      return;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newDocument: CertificationDocument = {
-      id: uuidv4(),
-      assetId: 'bulk',
-      fileName: file.name,
-      fileUrl: URL.createObjectURL(file),
-      uploadDate: format(new Date(), 'yyyy-MM-dd'),
-      uploadedBy: user.id,
-      appliedToAssets: assetIds,
-    };
-    
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (assetIds.includes(asset.id) && asset.orgId === orgId) {
-          return {
-            ...asset,
-            lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
-            nextCertificationDate: format(addMonths(new Date(), 6), 'yyyy-MM-dd'),
-            status: 'active',
-            certificationDocuments: [...asset.certificationDocuments, newDocument],
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
-  const markAsFailed = (id: string, reason: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot mark asset as failed: Missing organization or user data');
-      return;
-    }
-
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          return {
-            ...asset,
-            status: 'failed',
-            failureDate: format(new Date(), 'yyyy-MM-dd'),
-            failureReason: reason,
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
-  const markAsInTesting = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot mark asset as in testing: Missing organization or user data');
-      return;
-    }
-
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          return {
-            ...asset,
-            status: 'in-testing',
-            testingStartDate: format(new Date(), 'yyyy-MM-dd'),
-          };
-        }
-        return asset;
-      });
-    });
-  };
-
-  const getAssetsByUser = (userId: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot get assets by user: Missing organization or user data');
-      return [];
-    }
-
-    return assets.filter(asset => 
-      asset.orgId === orgId && 
-      asset.assignedUserId === userId
-    );
-  };
-
-  const getAssetById = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot get asset by ID: Missing organization or user data');
-      return undefined;
-    }
-
-    return assets.find(asset => 
-      asset.id === id && 
-      asset.orgId === orgId
-    );
-  };
-
-  const importAssets = (newAssets: Partial<Asset>[]) => {
-    if (!orgId || !user) {
-      console.warn('Cannot import assets: Missing organization or user data');
-      return;
-    }
-
-    const processedAssets = newAssets.map(asset => {
-      if (!asset.lastCertificationDate) {
-        throw new Error('Assets must include lastCertificationDate');
+  const fetchAssets = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken({ template: 'supabase' });
+      if (!token) {
+        throw new Error('Failed to get token');
       }
-      
-      const nextCertificationDate = format(
-        addMonths(new Date(asset.lastCertificationDate), 6), 
-        'yyyy-MM-dd'
-      );
-      
-      return {
-        id: uuidv4(),
-        orgId,
-        serialNumber: asset.serialNumber || `SN-${uuidv4().substring(0, 8)}`,
-        assetClass: asset.assetClass || 'Class 1',
-        assignedUserId: asset.assignedUserId || null,
-        issueDate: asset.issueDate || format(new Date(), 'yyyy-MM-dd'),
-        lastCertificationDate: asset.lastCertificationDate,
-        nextCertificationDate,
-        status: calculateAssetStatus(nextCertificationDate),
-        certificationDocuments: [],
-      } as Asset;
-    });
-    
-    setAssets(prevAssets => [...prevAssets, ...processedAssets]);
+      const supabase = createSupabaseClient(token);
+      const { data, error } = await supabase
+        .from('assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAssets(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch assets'));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const exportAssets = () => {
-    if (!orgId || !user) {
-      console.warn('Cannot export assets: Missing organization or user data');
-      return '';
+  const calculateAssetStatus = (next_certification_date: string): AssetStatus => {
+    const now = new Date();
+    const certDate = new Date(next_certification_date);
+    const daysUntilExpiration = Math.floor((certDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntilExpiration < 0) {
+      return 'expired';
+    } else if (daysUntilExpiration <= 30) {
+      return 'near-due';
+    } else {
+      return 'active';
     }
+  };
 
-    const orgAssets = assets.filter(asset => asset.orgId === orgId);
-    const headers = 'id,serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate,nextCertificationDate,status,failureDate,failureReason,testingStartDate,orgId\n';
-    const csvContent = orgAssets.map(asset => {
-      return `${asset.id},${asset.serialNumber},${asset.assetClass},${asset.assignedUserId || ''},${asset.issueDate},${asset.lastCertificationDate},${asset.nextCertificationDate},${asset.status},${asset.failureDate || ''},${asset.failureReason || ''},${asset.testingStartDate || ''},${asset.orgId}`;
-    }).join('\n');
-    
-    return headers + csvContent;
+  const mapDatabaseAssetToAsset = (dbAsset: Asset): Asset => ({
+    ...dbAsset
+  });
+
+  function decodeJwtPayload(token: string): any {
+    try {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload));
+    } catch {
+      return {};
+    }
+  }
+
+  const addAsset = async (asset: AssetInsert) => {
+    if (!organization?.id || !user?.id) throw new Error('No organization or user found');
+    if (!asset.last_certification_date) throw new Error('last_certification_date is required');
+    const next_certification_date = format(addMonths(new Date(asset.last_certification_date), 6), 'yyyy-MM-dd');
+    const status = calculateAssetStatus(next_certification_date);
+    const token = await getToken({ template: 'supabase' });
+    if (!token) throw new Error('No Clerk JWT found');
+    const decoded = decodeJwtPayload(token);
+    console.log('JWT:', token);
+    console.log('Decoded org_id in JWT:', decoded.org_id);
+    console.log('organization.id:', organization.id);
+    const assetToInsert = {
+      org_id: organization.id,
+      serial_number: asset.serial_number,
+      asset_class: asset.asset_class,
+      glove_size: asset.glove_size,
+      glove_color: asset.glove_color,
+      issue_date: asset.issue_date,
+      last_certification_date: asset.last_certification_date,
+      next_certification_date,
+      status,
+      assigned_user_id: user.id,
+    };
+    console.log('Inserting asset:', assetToInsert);
+    const supabaseWithAuth = createSupabaseClient(token);
+    const { data, error } = await supabaseWithAuth
+      .from('assets')
+      .insert([assetToInsert])
+      .select()
+      .single();
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+    if (!data) throw new Error('No data returned from Supabase');
+    const newAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => [...prev, newAsset]);
+  };
+
+  const updateAsset = async (id: string, asset: AssetUpdate) => {
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) {
+        throw new Error('Failed to get token');
+      }
+      const supabase = createSupabaseClient(token);
+      const { error } = await supabase
+        .from('assets')
+        .update(asset)
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to update asset'));
+      throw err;
+    }
+  };
+
+  const deleteAsset = async (id: string) => {
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) {
+        throw new Error('Failed to get token');
+      }
+      const supabase = createSupabaseClient(token);
+      const { error } = await supabase
+        .from('assets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to delete asset'));
+      throw err;
+    }
+  };
+
+  const importAssets = async (assets: AssetInsert[]) => {
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) {
+        throw new Error('Failed to get token');
+      }
+      const supabase = createSupabaseClient(token);
+      const { error } = await supabase
+        .from('assets')
+        .insert(assets.map(asset => ({
+          ...asset,
+          org_id: organization?.id
+        })));
+
+      if (error) throw error;
+      await fetchAssets();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to import assets'));
+      throw err;
+    }
+  };
+
+  const exportAssets = async (): Promise<Asset[]> => {
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) {
+        throw new Error('Failed to get token');
+      }
+      const supabase = createSupabaseClient(token);
+      const { data, error } = await supabase
+        .from('assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to export assets'));
+      throw err;
+    }
   };
 
   return (
-    <AssetContext.Provider
-      value={{
-        assets,
-        addAsset,
-        updateAsset,
-        deleteAsset,
-        uploadDocument,
-        bulkUploadDocument,
-        markAsFailed,
-        markAsInTesting,
-        getAssetsByUser,
-        getAssetById,
-        importAssets,
-        exportAssets,
-      }}
-    >
+    <AssetContext.Provider value={{
+      assets,
+      loading,
+      error,
+      addAsset,
+      updateAsset,
+      deleteAsset,
+      importAssets,
+      exportAssets
+    }}>
       {children}
     </AssetContext.Provider>
   );
 };
+
+export default AssetContext;

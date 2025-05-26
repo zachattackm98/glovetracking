@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useRole } from '../hooks/useRole';
-import { useAssets } from '../context/AssetContext';
+import { useAssets } from '../hooks/useAssets';
 import PageLayout from '../components/layout/PageLayout';
 import Card, { CardContent, CardHeader } from '../components/ui/Card';
 import CsvImporter from '../components/import-export/CsvImporter';
@@ -94,27 +94,27 @@ const ImportExportPage: React.FC = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       <tr>
-                        <td className="px-3 py-2 text-sm text-gray-900">serialNumber</td>
+                        <td className="px-3 py-2 text-sm text-gray-900">serial_number</td>
                         <td className="px-3 py-2 text-sm text-gray-900">Yes</td>
                         <td className="px-3 py-2 text-sm text-gray-500">Unique identifier for the asset</td>
                       </tr>
                       <tr>
-                        <td className="px-3 py-2 text-sm text-gray-900">assetClass</td>
+                        <td className="px-3 py-2 text-sm text-gray-900">asset_class</td>
                         <td className="px-3 py-2 text-sm text-gray-900">Yes</td>
                         <td className="px-3 py-2 text-sm text-gray-500">Class type (e.g., "Class 0", "Class 1")</td>
                       </tr>
                       <tr>
-                        <td className="px-3 py-2 text-sm text-gray-900">assignedUserId</td>
+                        <td className="px-3 py-2 text-sm text-gray-900">assigned_user_id</td>
                         <td className="px-3 py-2 text-sm text-gray-900">No</td>
                         <td className="px-3 py-2 text-sm text-gray-500">User ID of assigned technician</td>
                       </tr>
                       <tr>
-                        <td className="px-3 py-2 text-sm text-gray-900">issueDate</td>
+                        <td className="px-3 py-2 text-sm text-gray-900">issue_date</td>
                         <td className="px-3 py-2 text-sm text-gray-900">No</td>
                         <td className="px-3 py-2 text-sm text-gray-500">Date issued (YYYY-MM-DD format)</td>
                       </tr>
                       <tr>
-                        <td className="px-3 py-2 text-sm text-gray-900">lastCertificationDate</td>
+                        <td className="px-3 py-2 text-sm text-gray-900">last_certification_date</td>
                         <td className="px-3 py-2 text-sm text-gray-900">Yes</td>
                         <td className="px-3 py-2 text-sm text-gray-500">Last certification date (YYYY-MM-DD format)</td>
                       </tr>
@@ -126,7 +126,7 @@ const ImportExportPage: React.FC = () => {
               <div className="pt-4 border-t border-gray-200">
                 <h4 className="text-base font-medium text-gray-800">Example CSV</h4>
                 <pre className="mt-2 bg-gray-50 p-3 rounded-md text-xs text-gray-700 overflow-x-auto">
-                  serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate{'\n'}
+                  serial_number,asset_class,assigned_user_id,issue_date,last_certification_date{'\n'}
                   G-12345,Class 1,2,2023-01-15,2023-05-10{'\n'}
                   G-67890,Class 2,,2022-12-10,2022-12-15{'\n'}
                   G-54321,Class 0,2,2023-04-05,2023-06-01

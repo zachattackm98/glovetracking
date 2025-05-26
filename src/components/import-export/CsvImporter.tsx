@@ -96,19 +96,19 @@ const CsvImporter: React.FC<CsvImporterProps> = ({ onImport }) => {
             // Map CSV headers to asset properties
             switch (header) {
               case 'serialnumber':
-                asset.serialNumber = values[index];
+                asset.serial_number = values[index];
                 break;
               case 'assetclass':
-                asset.assetClass = values[index];
+                asset.asset_class = values[index];
                 break;
               case 'assigneduserid':
-                asset.assignedUserId = values[index] || null;
+                asset.assigned_user_id = values[index] || null;
                 break;
               case 'issuedate':
-                asset.issueDate = values[index];
+                asset.issue_date = values[index];
                 break;
               case 'lastcertificationdate':
-                asset.lastCertificationDate = values[index];
+                asset.last_certification_date = values[index];
                 break;
               default:
                 // Handle any additional columns
@@ -163,7 +163,7 @@ const CsvImporter: React.FC<CsvImporterProps> = ({ onImport }) => {
                 Upload a CSV file with the following columns:
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                serialNumber, assetClass, assignedUserId (optional), issueDate (optional), lastCertificationDate
+                serial_number, asset_class, assigned_user_id (optional), issue_date (optional), last_certification_date
               </p>
             </div>
             <input

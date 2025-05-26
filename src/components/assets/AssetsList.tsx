@@ -27,13 +27,13 @@ const AssetsList: React.FC<AssetsListProps> = ({ assets, userMap = {} }) => {
   
   const filteredAssets = assets.filter(asset => {
     // Apply search filter
-    const matchesSearch = asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (asset.serial_number || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     // Apply status filter
     const matchesStatus = statusFilter === 'all' || asset.status === statusFilter;
     
     // Apply class filter
-    const matchesClass = classFilter === 'all' || asset.assetClass === classFilter;
+    const matchesClass = classFilter === 'all' || asset.asset_class === classFilter;
     
     return matchesSearch && matchesStatus && matchesClass;
   });
@@ -109,7 +109,7 @@ const AssetsList: React.FC<AssetsListProps> = ({ assets, userMap = {} }) => {
             <AssetCard 
               key={asset.id} 
               asset={asset} 
-              userName={asset.assignedUserId ? userMap[asset.assignedUserId] : 'Unassigned'} 
+              userName={asset.assigned_user_id ? userMap[asset.assigned_user_id] : 'Unassigned'} 
             />
           ))}
         </div>

@@ -32,31 +32,31 @@ const AssetCard: React.FC<AssetCardProps> = ({
           <div>
             <h3 className="text-lg font-medium text-gray-900">
               <Link to={`/assets/${asset.id}`} className="hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
-                {asset.serialNumber}
+                {asset.serial_number}
               </Link>
             </h3>
-            <p className="text-sm text-gray-500">{asset.assetClass}</p>
+            <p className="text-sm text-gray-500">{asset.asset_class}</p>
           </div>
           <StatusBadge status={asset.status} />
         </div>
         
         <div className="space-y-3">
-          {asset.gloveSize && (
+          {asset.glove_size && (
             <div className="flex items-center text-sm">
               <Ruler className="h-4 w-4 text-gray-400 mr-2" />
               <div>
                 <span className="text-gray-500">Size: </span>
-                <span className="font-medium">{asset.gloveSize}</span>
+                <span className="font-medium">{asset.glove_size}</span>
               </div>
             </div>
           )}
           
-          {asset.gloveColor && (
+          {asset.glove_color && (
             <div className="flex items-center text-sm">
               <Palette className="h-4 w-4 text-gray-400 mr-2" />
               <div>
                 <span className="text-gray-500">Color: </span>
-                <span className="font-medium capitalize">{asset.gloveColor}</span>
+                <span className="font-medium capitalize">{asset.glove_color}</span>
               </div>
             </div>
           )}
@@ -65,7 +65,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
             <Calendar className="h-4 w-4 text-gray-400 mr-2" />
             <div>
               <span className="text-gray-500">Last Certified: </span>
-              <span className="font-medium">{formatDate(asset.lastCertificationDate)}</span>
+              <span className="font-medium">{formatDate(asset.last_certification_date)}</span>
             </div>
           </div>
           
@@ -74,7 +74,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
             <div>
               <span className="text-gray-500">Next Due: </span>
               <span className={`font-medium ${asset.status === 'expired' ? 'text-danger-600' : asset.status === 'near-due' ? 'text-warning-600' : ''}`}>
-                {formatDate(asset.nextCertificationDate)}
+                {formatDate(asset.next_certification_date)}
               </span>
             </div>
           </div>
@@ -91,7 +91,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
             <FileText className="h-4 w-4 text-gray-400 mr-2" />
             <div>
               <span className="text-gray-500">Documents: </span>
-              <span className="font-medium">{asset.certificationDocuments.length}</span>
+              <span className="font-medium">{(asset.certificationDocuments || []).length}</span>
             </div>
           </div>
         </div>

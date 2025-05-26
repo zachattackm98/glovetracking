@@ -93,8 +93,8 @@ const BulkUpload: React.FC<BulkUploadProps> = ({
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                   />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-900">{asset.serialNumber}</p>
-                    <p className="text-sm text-gray-500">{asset.assetClass}</p>
+                    <p className="text-sm font-medium text-gray-900">{asset.serial_number}</p>
+                    <p className="text-sm text-gray-500">{asset.asset_class}</p>
                   </div>
                 </label>
               ))}

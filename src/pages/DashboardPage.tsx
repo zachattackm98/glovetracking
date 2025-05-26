@@ -3,7 +3,7 @@ import { Shield, Clock, AlertTriangle, CheckCircle, TestTube, XCircle } from 'lu
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { useAssets } from '../context/AssetContext';
+import { useAssets } from '../hooks/useAssets';
 import PageLayout from '../components/layout/PageLayout';
 import StatusChart from '../components/dashboard/StatusChart';
 import StatCard from '../components/dashboard/StatCard';
@@ -19,16 +19,16 @@ const DashboardPage: React.FC = () => {
     return {
       total: assets.length,
       active: assets.filter(a => a.status === 'active').length,
-      nearDue: assets.filter(a => a.status === 'near-due').length,
+      near_due: assets.filter(a => a.status === 'near-due').length,
       expired: assets.filter(a => a.status === 'expired').length,
-      inTesting: assets.filter(a => a.status === 'in-testing').length,
+      in_testing: assets.filter(a => a.status === 'in-testing').length,
       failed: assets.filter(a => a.status === 'failed').length,
     };
   }, [assets]);
   
   const userAssets = useMemo(() => {
     if (isMember) {
-      return assets.filter(asset => asset.assignedUserId === user?.id);
+      return assets.filter(asset => asset.assigned_user_id === user?.id);
     }
     return [];
   }, [assets, user, isMember]);
@@ -41,8 +41,8 @@ const DashboardPage: React.FC = () => {
           if (a.status === 'expired' && b.status !== 'expired') return -1;
           if (a.status !== 'expired' && b.status === 'expired') return 1;
           
-          const dateA = new Date(a.nextCertificationDate);
-          const dateB = new Date(b.nextCertificationDate);
+          const dateA = new Date(a.next_certification_date);
+          const dateB = new Date(b.next_certification_date);
           return dateA.getTime() - dateB.getTime();
         })
         .slice(0, 3);
@@ -54,8 +54,8 @@ const DashboardPage: React.FC = () => {
     return assets
       .filter(asset => asset.status === 'in-testing')
       .sort((a, b) => {
-        const dateA = new Date(a.testingStartDate!);
-        const dateB = new Date(b.testingStartDate!);
+        const dateA = new Date(a.testing_start_date!);
+        const dateB = new Date(b.testing_start_date!);
         return dateB.getTime() - dateA.getTime();
       });
   }, [assets]);
@@ -64,8 +64,8 @@ const DashboardPage: React.FC = () => {
     return assets
       .filter(asset => asset.status === 'failed')
       .sort((a, b) => {
-        const dateA = new Date(a.failureDate!);
-        const dateB = new Date(b.failureDate!);
+        const dateA = new Date(a.failure_date!);
+        const dateB = new Date(b.failure_date!);
         return dateB.getTime() - dateA.getTime();
       });
   }, [assets]);
@@ -89,7 +89,7 @@ const DashboardPage: React.FC = () => {
         />
         <StatCard
           title="Due Soon"
-          value={assetStats.nearDue}
+          value={assetStats.near_due}
           icon={<Clock className="h-6 w-6" />}
           color="warning"
           linkTo="/assets?status=near-due"
@@ -103,7 +103,7 @@ const DashboardPage: React.FC = () => {
         />
         <StatCard
           title="In Testing"
-          value={assetStats.inTesting}
+          value={assetStats.in_testing}
           icon={<TestTube className="h-6 w-6" />}
           color="primary"
           linkTo="/assets?status=in-testing"
@@ -148,11 +148,11 @@ const DashboardPage: React.FC = () => {
                                 to={`/assets/${asset.id}`}
                                 className="text-base font-medium text-gray-900 hover:text-primary-600"
                               >
-                                {asset.serialNumber}
+                                {asset.serial_number}
                               </Link>
-                              <p className="text-sm text-gray-500">{asset.assetClass}</p>
+                              <p className="text-sm text-gray-500">{asset.asset_class}</p>
                               <p className="text-sm text-gray-500 mt-1">
-                                Testing since: {new Date(asset.testingStartDate!).toLocaleDateString()}
+                                Testing since: {new Date(asset.testing_start_date!).toLocaleDateString()}
                               </p>
                             </div>
                             <Link to={`/assets/${asset.id}`}>
@@ -190,14 +190,14 @@ const DashboardPage: React.FC = () => {
                                 to={`/assets/${asset.id}`}
                                 className="text-base font-medium text-gray-900 hover:text-primary-600"
                               >
-                                {asset.serialNumber}
+                                {asset.serial_number}
                               </Link>
-                              <p className="text-sm text-gray-500">{asset.assetClass}</p>
+                              <p className="text-sm text-gray-500">{asset.asset_class}</p>
                               <p className="text-sm text-gray-500 mt-1">
-                                Failed on: {new Date(asset.failureDate!).toLocaleDateString()}
+                                Failed on: {new Date(asset.failure_date!).toLocaleDateString()}
                               </p>
                               <p className="text-sm text-danger-600 mt-1">
-                                Reason: {asset.failureReason}
+                                Reason: {asset.failure_reason}
                               </p>
                             </div>
                             <Link to={`/assets/${asset.id}`}>
@@ -232,9 +232,9 @@ const DashboardPage: React.FC = () => {
                                 to={`/assets/${asset.id}`}
                                 className="text-base font-medium text-gray-900 hover:text-primary-600"
                               >
-                                {asset.serialNumber}
+                                {asset.serial_number}
                               </Link>
-                              <p className="text-sm text-gray-500">{asset.assetClass}</p>
+                              <p className="text-sm text-gray-500">{asset.asset_class}</p>
                             </div>
                             <div>
                               {asset.status === 'expired' ? (

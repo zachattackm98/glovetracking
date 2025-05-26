@@ -4,7 +4,7 @@ import { ArrowLeft, FileText, Edit, Trash2, AlertTriangle, Clock, CheckCircle, X
 import { format, parseISO } from 'date-fns';
 import { useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { useAssets } from '../context/AssetContext';
+import { useAssets } from '../hooks/useAssets';
 import PageLayout from '../components/layout/PageLayout';
 import Button from '../components/ui/Button';
 import Card, { CardContent, CardHeader, CardFooter } from '../components/ui/Card';
@@ -35,7 +35,7 @@ const AssetDetailsPage: React.FC = () => {
   const hasAccess = useMemo(() => {
     if (!asset || !user) return false;
     if (isAdmin) return true;
-    if (isMember && asset.assignedUserId === user.id) return true;
+    if (isMember && asset.assigned_user_id === user.id) return true;
     return false;
   }, [asset, user, isAdmin, isMember]);
   
@@ -56,7 +56,7 @@ const AssetDetailsPage: React.FC = () => {
       id: '2',
       name: 'Tech User',
       email: 'tech@example.com',
-      role: 'member',
+      role: 'technician',
       createdAt: new Date().toISOString(),
     },
   ];
@@ -87,10 +87,10 @@ const AssetDetailsPage: React.FC = () => {
   };
   
   const assignedUserName = useMemo(() => {
-    if (!asset.assignedUserId) return 'Unassigned';
-    const foundUser = users.find(u => u.id === asset.assignedUserId);
+    if (!asset.assigned_user_id) return 'Unassigned';
+    const foundUser = users.find(u => u.id === asset.assigned_user_id);
     return foundUser ? foundUser.name : 'Unknown User';
-  }, [asset.assignedUserId, users]);
+  }, [asset.assigned_user_id, users]);
   
   const handleUpdateAsset = async (data: any) => {
     setIsSubmitting(true);
@@ -175,10 +175,10 @@ const AssetDetailsPage: React.FC = () => {
             <CardHeader className="flex justify-between items-start">
               <div>
                 <div className="flex items-center">
-                  <h2 className="text-xl font-bold text-gray-900">{asset.serialNumber}</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{asset.serial_number}</h2>
                   <StatusBadge status={asset.status} className="ml-3" />
                 </div>
-                <p className="text-sm text-gray-500 mt-1">{asset.assetClass}</p>
+                <p className="text-sm text-gray-500 mt-1">{asset.asset_class}</p>
               </div>
               
               {isAdmin && !isEditing && (
@@ -240,11 +240,11 @@ const AssetDetailsPage: React.FC = () => {
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm font-medium text-gray-500">Asset ID</p>
-                        <p className="mt-1 text-base text-gray-900">{asset.serialNumber}</p>
+                        <p className="mt-1 text-base text-gray-900">{asset.serial_number}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Class</p>
-                        <p className="mt-1 text-base text-gray-900">{asset.assetClass}</p>
+                        <p className="mt-1 text-base text-gray-900">{asset.asset_class}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Assigned To</p>
@@ -255,29 +255,29 @@ const AssetDetailsPage: React.FC = () => {
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm font-medium text-gray-500">Issue Date</p>
-                        <p className="mt-1 text-base text-gray-900">{formatDate(asset.issueDate)}</p>
+                        <p className="mt-1 text-base text-gray-900">{formatDate(asset.issue_date)}</p>
                       </div>
                       {asset.status === 'in-testing' ? (
                         <div>
                           <p className="text-sm font-medium text-gray-500">Testing Started</p>
-                          <p className="mt-1 text-base text-gray-900">{formatDate(asset.testingStartDate!)}</p>
+                          <p className="mt-1 text-base text-gray-900">{formatDate(asset.testing_start_date!)}</p>
                         </div>
                       ) : asset.status === 'failed' ? (
                         <>
                           <div>
                             <p className="text-sm font-medium text-gray-500">Failed On</p>
-                            <p className="mt-1 text-base text-gray-900">{formatDate(asset.failureDate!)}</p>
+                            <p className="mt-1 text-base text-gray-900">{formatDate(asset.failure_date!)}</p>
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-500">Failure Reason</p>
-                            <p className="mt-1 text-base text-gray-900">{asset.failureReason}</p>
+                            <p className="mt-1 text-base text-gray-900">{asset.failure_reason}</p>
                           </div>
                         </>
                       ) : (
                         <>
                           <div>
                             <p className="text-sm font-medium text-gray-500">Last Certification</p>
-                            <p className="mt-1 text-base text-gray-900">{formatDate(asset.lastCertificationDate)}</p>
+                            <p className="mt-1 text-base text-gray-900">{formatDate(asset.last_certification_date)}</p>
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-500">Next Certification Due</p>
@@ -289,7 +289,7 @@ const AssetDetailsPage: React.FC = () => {
                                   : 'text-gray-900'
                             }`}>
                               {getStatusIcon()}
-                              <span className="ml-2">{formatDate(asset.nextCertificationDate)}</span>
+                              <span className="ml-2">{formatDate(asset.next_certification_date)}</span>
                             </p>
                           </div>
                         </>
@@ -391,31 +391,31 @@ const AssetDetailsPage: React.FC = () => {
               {isAdmin && asset.status !== 'failed' ? (
                 <DocumentUpload
                   onUpload={handleDocumentUpload}
-                  documents={asset.certificationDocuments}
+                  documents={asset.certification_documents}
                   isUploading={isUploading}
                 />
               ) : (
                 <div>
-                  {asset.certificationDocuments.length === 0 ? (
+                  {asset.certification_documents.length === 0 ? (
                     <p className="text-gray-500 text-sm">No documents available</p>
                   ) : (
                     <ul className="space-y-2">
-                      {asset.certificationDocuments.map((doc) => (
+                      {asset.certification_documents.map((doc) => (
                         <li key={doc.id} className="bg-gray-50 border border-gray-200 rounded-md p-3 flex items-center justify-between">
                           <div className="flex items-center">
                             <FileText className="h-5 w-5 text-primary-500 mr-2" />
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                              <p className="text-xs text-gray-500">Uploaded on {doc.uploadDate}</p>
-                              {doc.appliedToAssets && (
+                              <p className="text-sm font-medium text-gray-900">{doc.file_name}</p>
+                              <p className="text-xs text-gray-500">Uploaded on {doc.upload_date}</p>
+                              {doc.applied_to_assets && (
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Applied to {doc.appliedToAssets.length} asset{doc.appliedToAssets.length !== 1 ? 's' : ''}
+                                  Applied to {doc.applied_to_assets.length} asset{doc.applied_to_assets.length !== 1 ? 's' : ''}
                                 </p>
                               )}
                             </div>
                           </div>
                           <a
-                            href={doc.fileUrl}
+                            href={doc.file_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-sm font-medium text-primary-600 hover:text-primary-700"

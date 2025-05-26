@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { PlusCircle, Upload } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { useAssets } from '../context/AssetContext';
+import { useAssets } from '../hooks/useAssets';
 import PageLayout from '../components/layout/PageLayout';
 import AssetsList from '../components/assets/AssetsList';
 import Button from '../components/ui/Button';
@@ -32,7 +32,7 @@ const AssetsPage: React.FC = () => {
         id: '2',
         name: 'Tech User',
         email: 'tech@example.com',
-        role: 'member',
+        role: 'technician',
         createdAt: new Date().toISOString(),
       },
     ];

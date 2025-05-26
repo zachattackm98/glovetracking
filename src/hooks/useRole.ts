@@ -8,6 +8,9 @@ export const useRole = () => {
   console.log('Organization Role:', membership?.role);
   console.log('Organization:', organization?.id);
   console.log('User:', user?.id);
+  console.log('Is User Loaded:', isUserLoaded);
+  console.log('Is Org Loaded:', isOrgLoaded);
+  console.log('Full Membership:', membership);
   
   const isAdmin = membership?.role === 'org:admin';
   const isMember = membership?.role === 'org:member' || isAdmin; // Admin is also a member

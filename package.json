@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/clerk-react": "^4.30.7",
     "@headlessui/react": "^1.7.15",
+    "@supabase/supabase-js": "^2.49.8",
     "date-fns": "^2.30.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
