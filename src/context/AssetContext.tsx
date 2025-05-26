@@ -89,6 +89,12 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
+      // Set the org_id in the request header
+      supabase.auth.setSession({
+        access_token: user.primaryOrganizationMembership?.organization.publicMetadata?.supabase_auth_token as string,
+        refresh_token: '',
+      });
+
       const { data: assetsData, error: assetsError } = await supabase
         .from('assets')
         .select('*')
@@ -153,7 +159,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       const newAsset = mapDatabaseAssetToAsset(data);
-      setAssets(prev => [...prev, newAsset]);
+      setAssets(prev => [...prev, { ...newAsset, certificationDocuments: [] }]);
     } catch (error: any) {
       console.error('Error adding asset:', error);
       throw error;
