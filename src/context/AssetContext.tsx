@@ -3,7 +3,7 @@ import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, CertificationDocument } from '../types';
 import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
 interface AssetContextType {
@@ -89,16 +89,14 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
-      const client = isAdmin ? adminSupabase : supabase;
-
-      const { data: assetsData, error: assetsError } = await client
+      const { data: assetsData, error: assetsError } = await supabase
         .from('assets')
         .select('*')
         .eq('org_id', organization.id);
 
       if (assetsError) throw assetsError;
 
-      const { data: documentsData, error: documentsError } = await client
+      const { data: documentsData, error: documentsError } = await supabase
         .from('certification_documents')
         .select('*')
         .eq('org_id', organization.id);
@@ -134,7 +132,23 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchAssets();
   }, [organization?.id, user]);
 
-  const getClient = () => isAdmin ? adminSupabase : supabase;
+  const callAdminFunction = async (operation: string, data: any) => {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ operation, data }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to perform admin operation');
+    }
+
+    return response.json();
+  };
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
     if (!organization?.id) throw new Error('No organization found');
@@ -142,27 +156,32 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
 
-    const { data, error } = await getClient()
-      .from('assets')
-      .insert({
-        org_id: organization.id,
-        serial_number: assetData.serialNumber,
-        asset_class: assetData.assetClass,
-        glove_size: assetData.gloveSize,
-        glove_color: assetData.gloveColor,
-        issue_date: assetData.issueDate,
-        last_certification_date: assetData.lastCertificationDate,
-        next_certification_date: nextCertificationDate,
-        status,
-        assigned_user_id: assetData.assignedUserId,
-      })
-      .select()
-      .single();
+    const data = {
+      org_id: organization.id,
+      serial_number: assetData.serialNumber,
+      asset_class: assetData.assetClass,
+      glove_size: assetData.gloveSize,
+      glove_color: assetData.gloveColor,
+      issue_date: assetData.issueDate,
+      last_certification_date: assetData.lastCertificationDate,
+      next_certification_date: nextCertificationDate,
+      status,
+      assigned_user_id: assetData.assignedUserId,
+    };
 
-    if (error) throw error;
+    if (isAdmin) {
+      const { data: newAsset } = await callAdminFunction('addAsset', data);
+      setAssets(prev => [...prev, { ...mapDatabaseAssetToAsset(newAsset), certificationDocuments: [] }]);
+    } else {
+      const { data: newAsset, error } = await supabase
+        .from('assets')
+        .insert(data)
+        .select()
+        .single();
 
-    const newAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => [...prev, { ...newAsset, certificationDocuments: [] }]);
+      if (error) throw error;
+      setAssets(prev => [...prev, { ...mapDatabaseAssetToAsset(newAsset), certificationDocuments: [] }]);
+    }
   };
 
   const updateAsset = async (id: string, assetData: Partial<Asset>) => {
@@ -183,7 +202,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateData.status = calculateAssetStatus(nextCertificationDate);
     }
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('assets')
       .update(updateData)
       .eq('id', id)
@@ -200,7 +219,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteAsset = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const { error } = await getClient()
+    const { error } = await supabase
       .from('assets')
       .delete()
       .eq('id', id)
@@ -216,7 +235,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const fileUrl = URL.createObjectURL(file);
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('certification_documents')
       .insert({
         asset_id: assetId,
@@ -261,7 +280,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       org_id: organization.id,
     }));
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('certification_documents')
       .insert(documents)
       .select();
@@ -293,7 +312,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const markAsFailed = async (id: string, reason: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('assets')
       .update({
         status: 'failed',
@@ -314,7 +333,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const markAsInTesting = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('assets')
       .update({
         status: 'in-testing',
@@ -366,7 +385,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     });
 
-    const { data, error } = await getClient()
+    const { data, error } = await supabase
       .from('assets')
       .insert(assetsToInsert)
       .select();
