@@ -1,21 +1,28 @@
 import React, { useState, useRef } from 'react';
 import { Upload, File, X } from 'lucide-react';
+import { useUser, useOrganization } from '@clerk/clerk-react';
 import Button from '../ui/Button';
 import { CertificationDocument } from '../../types';
+import toast from 'react-hot-toast';
 
 interface DocumentUploadProps {
-  onUpload: (file: File) => Promise<void>;
+  assetId: string;
+  onUpload: (document: CertificationDocument) => void;
   documents: CertificationDocument[];
   isUploading?: boolean;
 }
 
 const DocumentUpload: React.FC<DocumentUploadProps> = ({ 
+  assetId,
   onUpload, 
   documents, 
   isUploading = false 
 }) => {
+  const { user } = useUser();
+  const { organization } = useOrganization();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,7 +31,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
       if (file.type === 'application/pdf') {
         setSelectedFile(file);
       } else {
-        alert('Please select a PDF file');
+        toast.error('Please select a PDF file');
       }
     }
   };
@@ -50,23 +57,54 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
       if (file.type === 'application/pdf') {
         setSelectedFile(file);
       } else {
-        alert('Please select a PDF file');
+        toast.error('Please select a PDF file');
       }
     }
   };
   
   const handleSubmit = async () => {
-    if (selectedFile) {
+    if (!selectedFile || !user || !organization) return;
+
+    setUploading(true);
+    const uploadPromise = (async () => {
       try {
-        await onUpload(selectedFile);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('assetId', assetId);
+        formData.append('orgId', organization.id);
+        formData.append('userId', user.id);
+
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const { data } = await response.json();
+        onUpload(data);
         setSelectedFile(null);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
+        return 'Document uploaded successfully';
       } catch (error) {
-        console.error('Error uploading file:', error);
+        throw new Error('Failed to upload document');
+      } finally {
+        setUploading(false);
       }
-    }
+    })();
+
+    toast.promise(uploadPromise, {
+      loading: 'Uploading document...',
+      success: (message) => message,
+      error: (error) => error.message,
+    });
   };
   
   return (
@@ -127,8 +165,8 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <Button
               size="sm"
               onClick={handleSubmit}
-              isLoading={isUploading}
-              disabled={isUploading}
+              isLoading={uploading || isUploading}
+              disabled={uploading || isUploading}
             >
               Upload
             </Button>
@@ -146,7 +184,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   <File className="h-5 w-5 text-primary-500 mr-2" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                    <p className="text-xs text-gray-500">Uploaded on {doc.uploadDate}</p>
+                    <p className="text-xs text-gray-500">Uploaded on {new Date(doc.uploadDate).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <a
