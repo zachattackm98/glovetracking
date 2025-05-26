@@ -10,3 +10,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Regular client for authenticated users
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+// Helper function for admin operations
+export const adminOperation = async (operation: string, data: any) => {
+  const response = await fetch(`${supabaseUrl}/functions/v1/admin-operations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ operation, data }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Operation failed');
+  }
+
+  return response.json();
+};

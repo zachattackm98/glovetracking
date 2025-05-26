@@ -26,20 +26,60 @@ serve(async (req) => {
     const { operation, data } = await req.json();
 
     switch (operation) {
-      case 'addAsset':
-        const { error: insertError } = await supabaseClient
+      case 'addAsset': {
+        const { data: insertedData, error: insertError } = await supabaseClient
           .from('assets')
-          .insert(data);
+          .insert(data)
+          .select()
+          .single();
 
         if (insertError) throw insertError;
 
         return new Response(
-          JSON.stringify({ message: 'Asset added successfully' }),
+          JSON.stringify({ data: insertedData }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
           }
         );
+      }
+
+      case 'updateAsset': {
+        const { id, ...updateData } = data;
+        const { data: updatedData, error: updateError } = await supabaseClient
+          .from('assets')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        return new Response(
+          JSON.stringify({ data: updatedData }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
+
+      case 'deleteAsset': {
+        const { error: deleteError } = await supabaseClient
+          .from('assets')
+          .delete()
+          .eq('id', data.id);
+
+        if (deleteError) throw deleteError;
+
+        return new Response(
+          JSON.stringify({ message: 'Asset deleted successfully' }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
 
       default:
         throw new Error('Invalid operation');
