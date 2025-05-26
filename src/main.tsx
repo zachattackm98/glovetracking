@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import App from './App.tsx';
 import './index.css';
 
+// Ensure we're using the correct environment variable
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 if (!clerkPubKey) {
