@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
-import { BrowserRouter, useNavigate } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
@@ -11,38 +11,16 @@ if (!clerkPubKey) {
   throw new Error('Missing Clerk Publishable Key');
 }
 
-// Validate key format
-if (!clerkPubKey.startsWith('pk_test_') && !clerkPubKey.startsWith('pk_live_')) {
-  throw new Error('Invalid Clerk Publishable Key format');
-}
-
-function ClerkProviderWithRoutes() {
-  const navigate = useNavigate();
-
-  return (
-    <ClerkProvider 
-      publishableKey={clerkPubKey}
-      navigate={(to) => navigate(to)}
-      appearance={{
-        baseTheme: undefined,
-        variables: {
-          colorPrimary: '#2563eb',
-        },
-      }}
-      // Add retry configuration
-      loadingStrategy="lazy"
-      afterSignInUrl="/dashboard"
-      afterSignUpUrl="/dashboard"
-    >
-      <App />
-    </ClerkProvider>
-  );
-}
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ClerkProviderWithRoutes />
+      <ClerkProvider 
+        publishableKey={clerkPubKey}
+        afterSignInUrl="/dashboard"
+        afterSignUpUrl="/dashboard"
+      >
+        <App />
+      </ClerkProvider>
     </BrowserRouter>
   </StrictMode>
 );
