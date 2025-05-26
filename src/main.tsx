@@ -39,7 +39,10 @@ createRoot(document.getElementById('root')!).render(
       }}
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/dashboard"
-      navigate={(to) => window.location.href = to}
+      navigate={(to) => {
+        window.history.pushState({}, '', to);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }}
     >
       <App />
     </ClerkProvider>
