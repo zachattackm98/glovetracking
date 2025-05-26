@@ -1,37 +1,42 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, CertificationDocument } from '../types';
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
+import { supabase } from '../lib/supabase';
+import { Database } from '../lib/database.types';
 
 interface AssetContextType {
   assets: Asset[];
-  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => void;
-  updateAsset: (id: string, asset: Partial<Asset>) => void;
-  deleteAsset: (id: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => Promise<void>;
+  updateAsset: (id: string, asset: Partial<Asset>) => Promise<void>;
+  deleteAsset: (id: string) => Promise<void>;
   uploadDocument: (assetId: string, file: File) => Promise<void>;
   bulkUploadDocument: (assetIds: string[], file: File) => Promise<void>;
-  markAsFailed: (id: string, reason: string) => void;
-  markAsInTesting: (id: string) => void;
+  markAsFailed: (id: string, reason: string) => Promise<void>;
+  markAsInTesting: (id: string) => Promise<void>;
   getAssetsByUser: (userId: string) => Asset[];
   getAssetById: (id: string) => Asset | undefined;
-  importAssets: (assets: Partial<Asset>[]) => void;
+  importAssets: (assets: Partial<Asset>[]) => Promise<void>;
   exportAssets: () => string;
 }
 
 const AssetContext = createContext<AssetContextType>({
   assets: [],
-  addAsset: () => {},
-  updateAsset: () => {},
-  deleteAsset: () => {},
+  isLoading: false,
+  error: null,
+  addAsset: async () => {},
+  updateAsset: async () => {},
+  deleteAsset: async () => {},
   uploadDocument: async () => {},
   bulkUploadDocument: async () => {},
-  markAsFailed: () => {},
-  markAsInTesting: () => {},
+  markAsFailed: async () => {},
+  markAsInTesting: async () => {},
   getAssetsByUser: () => [],
   getAssetById: () => undefined,
-  importAssets: () => {},
+  importAssets: async () => {},
   exportAssets: () => '',
 });
 
@@ -51,282 +56,362 @@ const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
   }
 };
 
+const mapDatabaseAssetToAsset = (dbAsset: Database['public']['Tables']['assets']['Row']): Asset => ({
+  id: dbAsset.id,
+  orgId: dbAsset.org_id,
+  serialNumber: dbAsset.serial_number,
+  assetClass: dbAsset.asset_class as Asset['assetClass'],
+  gloveSize: dbAsset.glove_size as Asset['gloveSize'],
+  gloveColor: dbAsset.glove_color as Asset['gloveColor'],
+  issueDate: dbAsset.issue_date,
+  lastCertificationDate: dbAsset.last_certification_date,
+  nextCertificationDate: dbAsset.next_certification_date,
+  status: dbAsset.status as AssetStatus,
+  failureDate: dbAsset.failure_date || undefined,
+  failureReason: dbAsset.failure_reason || undefined,
+  testingStartDate: dbAsset.testing_start_date || undefined,
+  assignedUserId: dbAsset.assigned_user_id || null,
+  certificationDocuments: [],
+});
+
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
-  const { isAdmin, orgId } = useRole();
+  const { organization } = useOrganization();
+  const { isAdmin } = useRole();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Debug logging
-  console.log('Asset Context - Is Admin:', isAdmin);
-  console.log('Asset Context - Org ID:', orgId);
-  console.log('Asset Context - User ID:', user?.id);
-
-  useEffect(() => {
-    if (!user || !orgId) {
-      console.warn('No user or organization found. Cannot load assets.');
+  const fetchAssets = async () => {
+    if (!organization?.id || !user) {
+      setIsLoading(false);
       return;
     }
 
-    const storedAssets = localStorage.getItem('safeguard_assets');
-    if (storedAssets) {
-      const parsedAssets = JSON.parse(storedAssets);
-      // Filter assets by organization and user role
-      const filteredAssets = parsedAssets.filter((asset: Asset) => {
-        const belongsToOrg = asset.orgId === orgId;
-        if (!belongsToOrg) return false;
-        if (isAdmin) return true;
-        return asset.assignedUserId === user.id;
+    try {
+      const { data: assetsData, error: assetsError } = await supabase
+        .from('assets')
+        .select('*')
+        .eq('org_id', organization.id);
+
+      if (assetsError) throw assetsError;
+
+      const { data: documentsData, error: documentsError } = await supabase
+        .from('certification_documents')
+        .select('*')
+        .eq('org_id', organization.id);
+
+      if (documentsError) throw documentsError;
+
+      const processedAssets = assetsData.map(dbAsset => {
+        const asset = mapDatabaseAssetToAsset(dbAsset);
+        asset.certificationDocuments = documentsData
+          .filter(doc => doc.asset_id === asset.id)
+          .map(doc => ({
+            id: doc.id,
+            assetId: doc.asset_id,
+            fileName: doc.file_name,
+            fileUrl: doc.file_url,
+            uploadDate: doc.upload_date,
+            uploadedBy: doc.uploaded_by,
+          }));
+        return asset;
       });
-      setAssets(filteredAssets);
+
+      setAssets(processedAssets);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching assets:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-  }, [user, orgId, isAdmin]);
+  };
 
   useEffect(() => {
-    if (assets.length > 0) {
-      localStorage.setItem('safeguard_assets', JSON.stringify(assets));
-    }
-  }, [assets]);
+    fetchAssets();
+  }, [organization?.id, user]);
 
-  const addAsset = (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
-    if (!orgId || !user) {
-      console.warn('Cannot add asset: Missing organization or user data');
-      return;
-    }
+  const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
+    if (!organization?.id) throw new Error('No organization found');
 
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
-    
-    const newAsset: Asset = {
-      ...assetData,
-      id: uuidv4(),
-      orgId,
-      status,
-      nextCertificationDate,
-      certificationDocuments: [],
+
+    const { data, error } = await supabase
+      .from('assets')
+      .insert({
+        org_id: organization.id,
+        serial_number: assetData.serialNumber,
+        asset_class: assetData.assetClass,
+        glove_size: assetData.gloveSize,
+        glove_color: assetData.gloveColor,
+        issue_date: assetData.issueDate,
+        last_certification_date: assetData.lastCertificationDate,
+        next_certification_date: nextCertificationDate,
+        status,
+        assigned_user_id: assetData.assignedUserId,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const newAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => [...prev, newAsset]);
+  };
+
+  const updateAsset = async (id: string, assetData: Partial<Asset>) => {
+    if (!organization?.id) throw new Error('No organization found');
+
+    const updateData: Database['public']['Tables']['assets']['Update'] = {
+      serial_number: assetData.serialNumber,
+      asset_class: assetData.assetClass,
+      glove_size: assetData.gloveSize,
+      glove_color: assetData.gloveColor,
+      assigned_user_id: assetData.assignedUserId,
     };
-    
-    setAssets(prevAssets => [...prevAssets, newAsset]);
-  };
 
-  const updateAsset = (id: string, assetData: Partial<Asset>) => {
-    if (!orgId || !user) {
-      console.warn('Cannot update asset: Missing organization or user data');
-      return;
+    if (assetData.lastCertificationDate) {
+      const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
+      updateData.last_certification_date = assetData.lastCertificationDate;
+      updateData.next_certification_date = nextCertificationDate;
+      updateData.status = calculateAssetStatus(nextCertificationDate);
     }
 
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          const updatedAsset = { ...asset, ...assetData };
-          
-          if (assetData.lastCertificationDate && !['failed', 'in-testing'].includes(updatedAsset.status)) {
-            updatedAsset.nextCertificationDate = format(
-              addMonths(new Date(assetData.lastCertificationDate), 6),
-              'yyyy-MM-dd'
-            );
-            updatedAsset.status = calculateAssetStatus(updatedAsset.nextCertificationDate);
-          }
-          
-          return updatedAsset;
-        }
-        return asset;
-      });
-    });
+    const { data, error } = await supabase
+      .from('assets')
+      .update(updateData)
+      .eq('id', id)
+      .eq('org_id', organization.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const updatedAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
-  const deleteAsset = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot delete asset: Missing organization or user data');
-      return;
-    }
+  const deleteAsset = async (id: string) => {
+    if (!organization?.id) throw new Error('No organization found');
 
-    setAssets(prevAssets => prevAssets.filter(asset => !(asset.id === id && asset.orgId === orgId)));
+    const { error } = await supabase
+      .from('assets')
+      .delete()
+      .eq('id', id)
+      .eq('org_id', organization.id);
+
+    if (error) throw error;
+
+    setAssets(prev => prev.filter(asset => asset.id !== id));
   };
 
   const uploadDocument = async (assetId: string, file: File) => {
-    if (!orgId || !user) {
-      console.warn('Cannot upload document: Missing organization or user data');
-      return;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newDocument: CertificationDocument = {
-      id: uuidv4(),
-      assetId,
-      fileName: file.name,
-      fileUrl: URL.createObjectURL(file),
-      uploadDate: format(new Date(), 'yyyy-MM-dd'),
-      uploadedBy: user.id,
-    };
-    
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === assetId && asset.orgId === orgId) {
-          return {
-            ...asset,
-            lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
-            nextCertificationDate: format(addMonths(new Date(), 6), 'yyyy-MM-dd'),
-            status: 'active',
-            certificationDocuments: [...asset.certificationDocuments, newDocument],
-          };
-        }
-        return asset;
-      });
-    });
+    if (!organization?.id || !user) throw new Error('No organization found');
+
+    // In a real implementation, you would upload the file to storage
+    // For now, we'll just create a fake URL
+    const fileUrl = URL.createObjectURL(file);
+
+    const { data, error } = await supabase
+      .from('certification_documents')
+      .insert({
+        asset_id: assetId,
+        file_name: file.name,
+        file_url: fileUrl,
+        uploaded_by: user.id,
+        org_id: organization.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    setAssets(prev => prev.map(asset => {
+      if (asset.id === assetId) {
+        return {
+          ...asset,
+          certificationDocuments: [...asset.certificationDocuments, {
+            id: data.id,
+            assetId: data.asset_id,
+            fileName: data.file_name,
+            fileUrl: data.file_url,
+            uploadDate: data.upload_date,
+            uploadedBy: data.uploaded_by,
+          }],
+        };
+      }
+      return asset;
+    }));
   };
 
   const bulkUploadDocument = async (assetIds: string[], file: File) => {
-    if (!orgId || !user) {
-      console.warn('Cannot bulk upload documents: Missing organization or user data');
-      return;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newDocument: CertificationDocument = {
-      id: uuidv4(),
-      assetId: 'bulk',
-      fileName: file.name,
-      fileUrl: URL.createObjectURL(file),
-      uploadDate: format(new Date(), 'yyyy-MM-dd'),
-      uploadedBy: user.id,
-      appliedToAssets: assetIds,
-    };
-    
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (assetIds.includes(asset.id) && asset.orgId === orgId) {
-          return {
-            ...asset,
-            lastCertificationDate: format(new Date(), 'yyyy-MM-dd'),
-            nextCertificationDate: format(addMonths(new Date(), 6), 'yyyy-MM-dd'),
-            status: 'active',
-            certificationDocuments: [...asset.certificationDocuments, newDocument],
-          };
-        }
-        return asset;
-      });
-    });
+    if (!organization?.id || !user) throw new Error('No organization found');
+
+    // In a real implementation, you would upload the file to storage
+    const fileUrl = URL.createObjectURL(file);
+
+    const documents = assetIds.map(assetId => ({
+      asset_id: assetId,
+      file_name: file.name,
+      file_url: fileUrl,
+      uploaded_by: user.id,
+      org_id: organization.id,
+    }));
+
+    const { data, error } = await supabase
+      .from('certification_documents')
+      .insert(documents)
+      .select();
+
+    if (error) throw error;
+
+    setAssets(prev => prev.map(asset => {
+      if (assetIds.includes(asset.id)) {
+        const assetDocs = data.filter(doc => doc.asset_id === asset.id);
+        return {
+          ...asset,
+          certificationDocuments: [
+            ...asset.certificationDocuments,
+            ...assetDocs.map(doc => ({
+              id: doc.id,
+              assetId: doc.asset_id,
+              fileName: doc.file_name,
+              fileUrl: doc.file_url,
+              uploadDate: doc.upload_date,
+              uploadedBy: doc.uploaded_by,
+            })),
+          ],
+        };
+      }
+      return asset;
+    }));
   };
 
-  const markAsFailed = (id: string, reason: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot mark asset as failed: Missing organization or user data');
-      return;
-    }
+  const markAsFailed = async (id: string, reason: string) => {
+    if (!organization?.id) throw new Error('No organization found');
 
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          return {
-            ...asset,
-            status: 'failed',
-            failureDate: format(new Date(), 'yyyy-MM-dd'),
-            failureReason: reason,
-          };
-        }
-        return asset;
-      });
-    });
+    const { data, error } = await supabase
+      .from('assets')
+      .update({
+        status: 'failed',
+        failure_date: format(new Date(), 'yyyy-MM-dd'),
+        failure_reason: reason,
+      })
+      .eq('id', id)
+      .eq('org_id', organization.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const updatedAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
-  const markAsInTesting = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot mark asset as in testing: Missing organization or user data');
-      return;
-    }
+  const markAsInTesting = async (id: string) => {
+    if (!organization?.id) throw new Error('No organization found');
 
-    setAssets(prevAssets => {
-      return prevAssets.map(asset => {
-        if (asset.id === id && asset.orgId === orgId) {
-          return {
-            ...asset,
-            status: 'in-testing',
-            testingStartDate: format(new Date(), 'yyyy-MM-dd'),
-          };
-        }
-        return asset;
-      });
-    });
+    const { data, error } = await supabase
+      .from('assets')
+      .update({
+        status: 'in-testing',
+        testing_start_date: format(new Date(), 'yyyy-MM-dd'),
+      })
+      .eq('id', id)
+      .eq('org_id', organization.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const updatedAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
   const getAssetsByUser = (userId: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot get assets by user: Missing organization or user data');
-      return [];
-    }
-
-    return assets.filter(asset => 
-      asset.orgId === orgId && 
-      asset.assignedUserId === userId
-    );
+    return assets.filter(asset => asset.assignedUserId === userId);
   };
 
   const getAssetById = (id: string) => {
-    if (!orgId || !user) {
-      console.warn('Cannot get asset by ID: Missing organization or user data');
-      return undefined;
-    }
-
-    return assets.find(asset => 
-      asset.id === id && 
-      asset.orgId === orgId
-    );
+    return assets.find(asset => asset.id === id);
   };
 
-  const importAssets = (newAssets: Partial<Asset>[]) => {
-    if (!orgId || !user) {
-      console.warn('Cannot import assets: Missing organization or user data');
-      return;
-    }
+  const importAssets = async (newAssets: Partial<Asset>[]) => {
+    if (!organization?.id) throw new Error('No organization found');
 
-    const processedAssets = newAssets.map(asset => {
+    const assetsToInsert = newAssets.map(asset => {
       if (!asset.lastCertificationDate) {
         throw new Error('Assets must include lastCertificationDate');
       }
-      
+
       const nextCertificationDate = format(
-        addMonths(new Date(asset.lastCertificationDate), 6), 
+        addMonths(new Date(asset.lastCertificationDate), 6),
         'yyyy-MM-dd'
       );
-      
+
       return {
-        id: uuidv4(),
-        orgId,
-        serialNumber: asset.serialNumber || `SN-${uuidv4().substring(0, 8)}`,
-        assetClass: asset.assetClass || 'Class 1',
-        assignedUserId: asset.assignedUserId || null,
-        issueDate: asset.issueDate || format(new Date(), 'yyyy-MM-dd'),
-        lastCertificationDate: asset.lastCertificationDate,
-        nextCertificationDate,
+        org_id: organization.id,
+        serial_number: asset.serialNumber || `SN-${Math.random().toString(36).substring(7)}`,
+        asset_class: asset.assetClass || 'Class 1',
+        glove_size: asset.gloveSize,
+        glove_color: asset.gloveColor,
+        issue_date: asset.issueDate || format(new Date(), 'yyyy-MM-dd'),
+        last_certification_date: asset.lastCertificationDate,
+        next_certification_date: nextCertificationDate,
         status: calculateAssetStatus(nextCertificationDate),
-        certificationDocuments: [],
-      } as Asset;
+        assigned_user_id: asset.assignedUserId,
+      };
     });
-    
-    setAssets(prevAssets => [...prevAssets, ...processedAssets]);
+
+    const { data, error } = await supabase
+      .from('assets')
+      .insert(assetsToInsert)
+      .select();
+
+    if (error) throw error;
+
+    const importedAssets = data.map(mapDatabaseAssetToAsset);
+    setAssets(prev => [...prev, ...importedAssets]);
   };
 
   const exportAssets = () => {
-    if (!orgId || !user) {
-      console.warn('Cannot export assets: Missing organization or user data');
-      return '';
-    }
+    const headers = [
+      'id',
+      'serialNumber',
+      'assetClass',
+      'gloveSize',
+      'gloveColor',
+      'issueDate',
+      'lastCertificationDate',
+      'nextCertificationDate',
+      'status',
+      'assignedUserId',
+    ].join(',');
 
-    const orgAssets = assets.filter(asset => asset.orgId === orgId);
-    const headers = 'id,serialNumber,assetClass,assignedUserId,issueDate,lastCertificationDate,nextCertificationDate,status,failureDate,failureReason,testingStartDate,orgId\n';
-    const csvContent = orgAssets.map(asset => {
-      return `${asset.id},${asset.serialNumber},${asset.assetClass},${asset.assignedUserId || ''},${asset.issueDate},${asset.lastCertificationDate},${asset.nextCertificationDate},${asset.status},${asset.failureDate || ''},${asset.failureReason || ''},${asset.testingStartDate || ''},${asset.orgId}`;
-    }).join('\n');
-    
-    return headers + csvContent;
+    const rows = assets.map(asset => [
+      asset.id,
+      asset.serialNumber,
+      asset.assetClass,
+      asset.gloveSize || '',
+      asset.gloveColor || '',
+      asset.issueDate,
+      asset.lastCertificationDate,
+      asset.nextCertificationDate,
+      asset.status,
+      asset.assignedUserId || '',
+    ].join(','));
+
+    return [headers, ...rows].join('\n');
   };
 
   return (
     <AssetContext.Provider
       value={{
         assets,
+        isLoading,
+        error,
         addAsset,
         updateAsset,
         deleteAsset,
