@@ -91,7 +91,7 @@ const AssetCard: React.FC<AssetCardProps> = ({
             <FileText className="h-4 w-4 text-gray-400 mr-2" />
             <div>
               <span className="text-gray-500">Documents: </span>
-              <span className="font-medium">{(asset.certificationDocuments || []).length}</span>
+              <span className="font-medium">{(asset.certification_documents || []).length}</span>
             </div>
           </div>
         </div>

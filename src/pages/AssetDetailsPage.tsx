@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, FileText, Edit, Trash2, AlertTriangle, Clock, CheckCircle, XCircle, TestTube } from 'lucide-react';
+import { ArrowLeft, FileText, Edit, Trash2, AlertTriangle, Clock, CheckCircle, XCircle, TestTube, Zap } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
@@ -80,7 +80,7 @@ const AssetDetailsPage: React.FC = () => {
       case 'failed':
         return <XCircle className="h-5 w-5 text-gray-500" />;
       case 'in-testing':
-        return <TestTube className="h-5 w-5 text-primary-500" />;
+        return <Zap className="h-5 w-5 text-blue-500" />;
       default:
         return null;
     }
@@ -122,6 +122,10 @@ const AssetDetailsPage: React.FC = () => {
     setIsUploading(true);
     try {
       await uploadDocument(asset.id, file);
+      // If the asset is in-testing, set it to active after upload
+      if (asset.status === 'in-testing') {
+        await updateAsset(asset.id, { status: 'active' });
+      }
     } catch (error) {
       console.error('Error uploading document:', error);
     } finally {
@@ -189,7 +193,7 @@ const AssetDetailsPage: React.FC = () => {
                       variant="outline"
                       onClick={handleMarkAsInTesting}
                       className="text-primary-600 hover:bg-primary-50"
-                      leftIcon={<TestTube className="h-4 w-4" />}
+                      leftIcon={<Zap className="h-4 w-4 text-blue-500" />}
                     >
                       Mark as Testing
                     </Button>
@@ -391,16 +395,16 @@ const AssetDetailsPage: React.FC = () => {
               {isAdmin && asset.status !== 'failed' ? (
                 <DocumentUpload
                   onUpload={handleDocumentUpload}
-                  documents={asset.certification_documents}
+                  documents={asset.certification_documents || []}
                   isUploading={isUploading}
                 />
               ) : (
                 <div>
-                  {asset.certification_documents.length === 0 ? (
+                  {(asset.certification_documents && asset.certification_documents.length === 0) ? (
                     <p className="text-gray-500 text-sm">No documents available</p>
                   ) : (
                     <ul className="space-y-2">
-                      {asset.certification_documents.map((doc) => (
+                      {(asset.certification_documents || []).map((doc) => (
                         <li key={doc.id} className="bg-gray-50 border border-gray-200 rounded-md p-3 flex items-center justify-between">
                           <div className="flex items-center">
                             <FileText className="h-5 w-5 text-primary-500 mr-2" />
@@ -409,7 +413,7 @@ const AssetDetailsPage: React.FC = () => {
                               <p className="text-xs text-gray-500">Uploaded on {doc.upload_date}</p>
                               {doc.applied_to_assets && (
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Applied to {doc.applied_to_assets.length} asset{doc.applied_to_assets.length !== 1 ? 's' : ''}
+                                  Applied to {(doc.applied_to_assets || []).length} asset{(doc.applied_to_assets || []).length !== 1 ? 's' : ''}
                                 </p>
                               )}
                             </div>

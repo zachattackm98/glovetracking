@@ -136,7 +136,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         </div>
       )}
       
-      {documents.length > 0 && (
+      {(documents && documents.length > 0) && (
         <div className="mt-6">
           <h3 className="text-base font-medium text-gray-900 mb-3">Uploaded Documents</h3>
           <ul className="space-y-2">
@@ -145,12 +145,12 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 <div className="flex items-center">
                   <File className="h-5 w-5 text-primary-500 mr-2" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                    <p className="text-xs text-gray-500">Uploaded on {doc.uploadDate}</p>
+                    <p className="text-sm font-medium text-gray-900">{doc.file_name}</p>
+                    <p className="text-xs text-gray-500">Uploaded on {doc.upload_date}</p>
                   </div>
                 </div>
                 <a
-                  href={doc.fileUrl}
+                  href={doc.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-medium text-primary-600 hover:text-primary-700"

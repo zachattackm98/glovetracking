@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Shield, Clock, AlertTriangle, CheckCircle, TestTube, XCircle } from 'lucide-react';
+import { Shield, Clock, AlertTriangle, CheckCircle, TestTube, XCircle, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
@@ -10,21 +10,34 @@ import StatCard from '../components/dashboard/StatCard';
 import AssetCard from '../components/assets/AssetCard';
 import Button from '../components/ui/Button';
 
+// Add DashboardStatCard component
+const DashboardStatCard = ({ title, value }: { title: string; value: number }) => (
+  <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center justify-center text-center">
+    <div className="text-4xl font-bold text-primary-600 mb-2">{value}</div>
+    <div className="text-lg font-semibold text-gray-700">{title}</div>
+  </div>
+);
+
 const DashboardPage: React.FC = () => {
   const { user } = useUser();
   const { isAdmin, isMember } = useRole();
   const { assets } = useAssets();
   
   const assetStats = useMemo(() => {
+    const relevantAssets = isAdmin
+      ? assets
+      : isMember
+        ? assets.filter(asset => asset.assigned_user_id === user?.id)
+        : [];
     return {
-      total: assets.length,
-      active: assets.filter(a => a.status === 'active').length,
-      near_due: assets.filter(a => a.status === 'near-due').length,
-      expired: assets.filter(a => a.status === 'expired').length,
-      in_testing: assets.filter(a => a.status === 'in-testing').length,
-      failed: assets.filter(a => a.status === 'failed').length,
+      total: relevantAssets.length,
+      active: relevantAssets.filter(a => a.status === 'active').length,
+      near_due: relevantAssets.filter(a => a.status === 'near-due').length,
+      expired: relevantAssets.filter(a => a.status === 'expired').length,
+      in_testing: relevantAssets.filter(a => a.status === 'in-testing').length,
+      failed: relevantAssets.filter(a => a.status === 'failed').length,
     };
-  }, [assets]);
+  }, [assets, user, isAdmin, isMember]);
   
   const userAssets = useMemo(() => {
     if (isMember) {
@@ -69,57 +82,36 @@ const DashboardPage: React.FC = () => {
         return dateB.getTime() - dateA.getTime();
       });
   }, [assets]);
-  
+
   return (
-    <PageLayout title="Dashboard" description="Overview of your safety equipment status">
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-6">
-        <StatCard
-          title="Total Assets"
-          value={assetStats.total}
-          icon={<Shield className="h-6 w-6" />}
-          color="primary"
-          linkTo="/assets"
-        />
-        <StatCard
-          title="Active"
-          value={assetStats.active}
-          icon={<CheckCircle className="h-6 w-6" />}
-          color="success"
-          linkTo="/assets?status=active"
-        />
-        <StatCard
-          title="Due Soon"
-          value={assetStats.near_due}
-          icon={<Clock className="h-6 w-6" />}
-          color="warning"
-          linkTo="/assets?status=near-due"
-        />
-        <StatCard
-          title="Expired"
-          value={assetStats.expired}
-          icon={<AlertTriangle className="h-6 w-6" />}
-          color="danger"
-          linkTo="/assets?status=expired"
-        />
-        <StatCard
-          title="In Testing"
-          value={assetStats.in_testing}
-          icon={<TestTube className="h-6 w-6" />}
-          color="primary"
-          linkTo="/assets?status=in-testing"
-        />
-        <StatCard
-          title="Failed"
-          value={assetStats.failed}
-          icon={<XCircle className="h-6 w-6" />}
-          color="danger"
-          linkTo="/assets?status=failed"
-        />
+    <PageLayout title="Dashboard" description="Overview of your organization's safety equipment.">
+      {/* Stat Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <Link to="/assets">
+          <DashboardStatCard title="Total Assets" value={assetStats.total} />
+        </Link>
+        <Link to="/assets?status=active">
+          <DashboardStatCard title="Active" value={assetStats.active} />
+        </Link>
+        <Link to="/assets?status=near-due">
+          <DashboardStatCard title="Due Soon" value={assetStats.near_due} />
+        </Link>
+        <Link to="/assets?status=expired">
+          <DashboardStatCard title="Expired" value={assetStats.expired} />
+        </Link>
+        <Link to="/assets?status=in-testing">
+          <DashboardStatCard title="In Testing" value={assetStats.in_testing} />
+        </Link>
+        <Link to="/assets?status=failed">
+          <DashboardStatCard title="Failed" value={assetStats.failed} />
+        </Link>
       </div>
       
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
-          <StatusChart assets={assets} />
+          <StatusChart assets={isAdmin ? assets : isMember ? assets.filter(asset => asset.assigned_user_id === user?.id) : []} 
+            showStatuses={['active', 'near-due', 'expired', 'in-testing', 'failed']} 
+          />
         </div>
         <div className="lg:col-span-2">
           {isAdmin && (

@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import AssetForm from '../components/assets/AssetForm';
 import BulkUpload from '../components/assets/BulkUpload';
 import { User } from '../types';
+import { useLocation } from 'react-router-dom';
 
 const AssetsPage: React.FC = () => {
   const { user } = useUser();
@@ -18,6 +19,9 @@ const AssetsPage: React.FC = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const statusFilter = params.get('status');
   
   const users: User[] = useMemo(() => {
     return [
@@ -46,13 +50,23 @@ const AssetsPage: React.FC = () => {
   }, [users]);
   
   const displayedAssets = useMemo(() => {
+    const ensureCertDocs = (asset: any) => ({
+      ...asset,
+      certificationDocuments: asset.certificationDocuments || [],
+    });
+    let filtered = assets;
     if (isAdmin) {
-      return assets;
+      filtered = assets;
     } else if (isMember) {
-      return assets.filter(asset => asset.assignedUserId === user?.id);
+      filtered = assets.filter(asset => asset.assigned_user_id === user?.id);
+    } else {
+      filtered = [];
     }
-    return [];
-  }, [assets, user, isAdmin, isMember]);
+    if (statusFilter) {
+      filtered = filtered.filter(asset => asset.status === statusFilter);
+    }
+    return filtered.map(ensureCertDocs);
+  }, [assets, user, isAdmin, isMember, statusFilter]);
   
   const handleCreateAsset = async (data: any) => {
     setIsSubmitting(true);
