@@ -142,7 +142,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
 
-    const { data: newAsset, error } = await getClient()
+    const { data, error } = await getClient()
       .from('assets')
       .insert({
         org_id: organization.id,
@@ -160,7 +160,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .single();
 
     if (error) throw error;
-    setAssets(prev => [...prev, { ...mapDatabaseAssetToAsset(newAsset), certificationDocuments: [] }]);
+
+    const newAsset = mapDatabaseAssetToAsset(data);
+    setAssets(prev => [...prev, { ...newAsset, certificationDocuments: [] }]);
   };
 
   const updateAsset = async (id: string, assetData: Partial<Asset>) => {
