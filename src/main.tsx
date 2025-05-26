@@ -20,9 +20,13 @@ createRoot(document.getElementById('root')!).render(
           socialButtonsPlacement: "bottom",
           socialButtonsVariant: "iconButton",
         },
+        variables: {
+          colorPrimary: '#0F172A',
+        },
       }}
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/dashboard"
+      navigate={(to) => window.location.href = to}
     >
       <App />
     </ClerkProvider>
