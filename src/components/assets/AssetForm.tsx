@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useOrganization } from '@clerk/clerk-react';
-import { Asset, AssetClass, GloveSize, GloveColor } from '../../types';
+import React, { useState } from 'react';
+import { Asset, AssetClass, User, GloveSize, GloveColor } from '../../types';
 import Button from '../ui/Button';
 
 interface AssetFormProps {
+  users: User[];
   initialData?: Partial<Asset>;
   onSubmit: (data: Partial<Asset>) => void;
   onCancel?: () => void;
@@ -11,49 +11,22 @@ interface AssetFormProps {
 }
 
 const AssetForm: React.FC<AssetFormProps> = ({
+  users,
   initialData = {},
   onSubmit,
   onCancel,
   isSubmitting = false,
 }) => {
-  const { organization, isLoaded } = useOrganization();
-  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
-  const [isLoadingMembers, setIsLoadingMembers] = useState(true);
-  
   const [formData, setFormData] = useState<Partial<Asset>>({
-    serialNumber: '',
-    assetClass: 'Class 1',
-    assignedUserId: null,
-    issueDate: new Date().toISOString().substring(0, 10),
-    lastCertificationDate: new Date().toISOString().substring(0, 10),
-    gloveSize: undefined,
-    gloveColor: undefined,
+    serial_number: '',
+    asset_class: 'Class 1',
+    assigned_user_id: null,
+    issue_date: new Date().toISOString().substring(0, 10),
+    last_certification_date: new Date().toISOString().substring(0, 10),
+    glove_size: undefined,
+    glove_color: undefined,
     ...initialData,
   });
-
-  useEffect(() => {
-    const loadMembers = async () => {
-      if (!organization || !isLoaded) return;
-      
-      try {
-        const memberships = await organization.getMemberships();
-        const membersList = memberships
-          .filter(member => member.role === 'org:member')
-          .map(member => ({
-            id: member.publicUserData?.userId || '',
-            name: `${member.publicUserData?.firstName || ''} ${member.publicUserData?.lastName || ''}`.trim() || member.publicUserData?.identifier || 'Unknown User'
-          }));
-        
-        setMembers(membersList);
-      } catch (error) {
-        console.error('Error loading members:', error);
-      } finally {
-        setIsLoadingMembers(false);
-      }
-    };
-
-    loadMembers();
-  }, [organization, isLoaded]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -76,30 +49,30 @@ const AssetForm: React.FC<AssetFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="serial_number" className="block text-sm font-medium text-gray-700">
             Serial Number / Asset ID *
           </label>
           <input
             type="text"
-            id="serialNumber"
-            name="serialNumber"
+            id="serial_number"
+            name="serial_number"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.serialNumber || ''}
+            value={formData.serial_number || ''}
             onChange={handleChange}
           />
         </div>
 
         <div>
-          <label htmlFor="assetClass" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="asset_class" className="block text-sm font-medium text-gray-700">
             Asset Class *
           </label>
           <select
-            id="assetClass"
-            name="assetClass"
+            id="asset_class"
+            name="asset_class"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.assetClass || ''}
+            value={formData.asset_class || ''}
             onChange={handleChange}
           >
             <option value="">Select Class</option>
@@ -112,14 +85,14 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="gloveSize" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="glove_size" className="block text-sm font-medium text-gray-700">
             Glove Size
           </label>
           <select
-            id="gloveSize"
-            name="gloveSize"
+            id="glove_size"
+            name="glove_size"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.gloveSize || ''}
+            value={formData.glove_size || ''}
             onChange={handleChange}
           >
             <option value="">Select Size</option>
@@ -132,14 +105,14 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="gloveColor" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="glove_color" className="block text-sm font-medium text-gray-700">
             Glove Color
           </label>
           <select
-            id="gloveColor"
-            name="gloveColor"
+            id="glove_color"
+            name="glove_color"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.gloveColor || ''}
+            value={formData.glove_color || ''}
             onChange={handleChange}
           >
             <option value="">Select Color</option>
@@ -152,71 +125,69 @@ const AssetForm: React.FC<AssetFormProps> = ({
         </div>
 
         <div>
-          <label htmlFor="assignedUserId" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="assigned_user_id" className="block text-sm font-medium text-gray-700">
             Assigned To
           </label>
           <select
-            id="assignedUserId"
-            name="assignedUserId"
+            id="assigned_user_id"
+            name="assigned_user_id"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.assignedUserId || ''}
+            value={formData.assigned_user_id || ''}
             onChange={handleChange}
-            disabled={isLoadingMembers}
           >
             <option value="">Unassigned</option>
-            {members.map(member => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
+            {users
+              .filter(user => user.role === 'technician')
+              .map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
           </select>
-          {isLoadingMembers && (
-            <p className="mt-1 text-sm text-gray-500">Loading members...</p>
-          )}
         </div>
 
         <div>
-          <label htmlFor="issueDate" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="issue_date" className="block text-sm font-medium text-gray-700">
             Issue Date *
           </label>
           <input
             type="date"
-            id="issueDate"
-            name="issueDate"
+            id="issue_date"
+            name="issue_date"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.issueDate?.substring(0, 10) || ''}
+            value={formData.issue_date?.substring(0, 10) || ''}
             onChange={handleChange}
           />
         </div>
 
         <div>
-          <label htmlFor="lastCertificationDate" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="last_certification_date" className="block text-sm font-medium text-gray-700">
             Last Certification Date *
           </label>
           <input
             type="date"
-            id="lastCertificationDate"
-            name="lastCertificationDate"
+            id="last_certification_date"
+            name="last_certification_date"
             required
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            value={formData.lastCertificationDate?.substring(0, 10) || ''}
+            value={formData.last_certification_date?.substring(0, 10) || ''}
             onChange={handleChange}
           />
         </div>
 
         {formData.status === 'failed' && (
           <div>
-            <label htmlFor="failureReason" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="failure_reason" className="block text-sm font-medium text-gray-700">
               Failure Reason *
             </label>
             <textarea
-              id="failureReason"
-              name="failureReason"
+              id="failure_reason"
+              name="failure_reason"
               required
               rows={3}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-              value={formData.failureReason || ''}
+              value={formData.failure_reason || ''}
               onChange={handleChange}
               placeholder="Describe the reason for failure..."
             />
@@ -230,7 +201,6 @@ const AssetForm: React.FC<AssetFormProps> = ({
             type="button"
             variant="outline"
             onClick={onCancel}
-            disabled={isSubmitting}
           >
             Cancel
           </Button>
@@ -238,7 +208,7 @@ const AssetForm: React.FC<AssetFormProps> = ({
         <Button
           type="submit"
           isLoading={isSubmitting}
-          disabled={isSubmitting || isLoadingMembers}
+          disabled={isSubmitting}
         >
           {initialData.id ? 'Update Asset' : 'Create Asset'}
         </Button>
