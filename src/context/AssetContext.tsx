@@ -82,53 +82,73 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAssets = async () => {
-    if (!organization?.id || !user) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const { data: assetsData, error: assetsError } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('org_id', organization.id);
-
-      if (assetsError) throw assetsError;
-
-      const { data: documentsData, error: documentsError } = await supabase
-        .from('certification_documents')
-        .select('*')
-        .eq('org_id', organization.id);
-
-      if (documentsError) throw documentsError;
-
-      const processedAssets = assetsData.map(dbAsset => {
-        const asset = mapDatabaseAssetToAsset(dbAsset);
-        asset.certificationDocuments = documentsData
-          .filter(doc => doc.asset_id === asset.id)
-          .map(doc => ({
-            id: doc.id,
-            assetId: doc.asset_id,
-            fileName: doc.file_name,
-            fileUrl: doc.file_url,
-            uploadDate: doc.upload_date,
-            uploadedBy: doc.uploaded_by,
-          }));
-        return asset;
-      });
-
-      setAssets(processedAssets);
-      setError(null);
-    } catch (err: any) {
-      console.error('Error fetching assets:', err);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchAssets = async () => {
+      if (!organization?.id || !user) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Get JWT token and log claims
+        const token = await user.getToken({ template: "supabase" });
+        console.log('JWT Token:', token);
+
+        // Set up Supabase auth context
+        supabase.auth.setSession({
+          access_token: token,
+          refresh_token: '',
+        });
+
+        const { data: assetsData, error: assetsError } = await supabase
+          .from('assets')
+          .select('*')
+          .eq('org_id', organization.id);
+
+        if (assetsError) {
+          console.error('Assets fetch error:', assetsError);
+          throw assetsError;
+        }
+
+        console.log('Assets fetched:', assetsData?.length || 0);
+
+        const { data: documentsData, error: documentsError } = await supabase
+          .from('certification_documents')
+          .select('*')
+          .eq('org_id', organization.id);
+
+        if (documentsError) {
+          console.error('Documents fetch error:', documentsError);
+          throw documentsError;
+        }
+
+        console.log('Documents fetched:', documentsData?.length || 0);
+
+        const processedAssets = assetsData.map(dbAsset => {
+          const asset = mapDatabaseAssetToAsset(dbAsset);
+          asset.certificationDocuments = documentsData
+            .filter(doc => doc.asset_id === asset.id)
+            .map(doc => ({
+              id: doc.id,
+              assetId: doc.asset_id,
+              fileName: doc.file_name,
+              fileUrl: doc.file_url,
+              uploadDate: doc.upload_date,
+              uploadedBy: doc.uploaded_by,
+            }));
+          return asset;
+        });
+
+        setAssets(processedAssets);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error in fetchAssets:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     fetchAssets();
   }, [organization?.id, user]);
 
