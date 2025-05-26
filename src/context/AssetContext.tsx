@@ -3,7 +3,7 @@ import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, CertificationDocument } from '../types';
 import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { supabase } from '../lib/supabase';
+import { supabase, adminOperation } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
 interface AssetContextType {
@@ -139,34 +139,21 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const status = calculateAssetStatus(nextCertificationDate);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'addAsset',
-          data: {
-            org_id: organization.id,
-            serial_number: assetData.serialNumber,
-            asset_class: assetData.assetClass,
-            glove_size: assetData.gloveSize,
-            glove_color: assetData.gloveColor,
-            issue_date: assetData.issueDate,
-            last_certification_date: assetData.lastCertificationDate,
-            next_certification_date: nextCertificationDate,
-            status,
-            assigned_user_id: assetData.assignedUserId,
-          },
-        }),
+      const { data } = await adminOperation('addAsset', {
+        org_id: organization.id,
+        serial_number: assetData.serialNumber,
+        asset_class: assetData.assetClass,
+        glove_size: assetData.gloveSize,
+        glove_color: assetData.gloveColor,
+        issue_date: assetData.issueDate,
+        last_certification_date: assetData.lastCertificationDate,
+        next_certification_date: nextCertificationDate,
+        status,
+        assigned_user_id: assetData.assignedUserId,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to add asset');
-      }
-
-      await fetchAssets();
+      const newAsset = mapDatabaseAssetToAsset(data);
+      setAssets(prev => [...prev, newAsset]);
     } catch (error: any) {
       console.error('Error adding asset:', error);
       throw error;
