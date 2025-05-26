@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Asset, AssetClass, User, GloveSize, GloveColor } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { useOrganization } from '@clerk/clerk-react';
+import { Asset, AssetClass, GloveSize, GloveColor } from '../../types';
 import Button from '../ui/Button';
 
 interface AssetFormProps {
-  users: User[];
   initialData?: Partial<Asset>;
   onSubmit: (data: Partial<Asset>) => void;
   onCancel?: () => void;
@@ -11,12 +11,13 @@ interface AssetFormProps {
 }
 
 const AssetForm: React.FC<AssetFormProps> = ({
-  users,
   initialData = {},
   onSubmit,
   onCancel,
   isSubmitting = false,
 }) => {
+  const { organization } = useOrganization();
+  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
   const [formData, setFormData] = useState<Partial<Asset>>({
     serial_number: '',
     asset_class: 'Class 1',
@@ -27,6 +28,28 @@ const AssetForm: React.FC<AssetFormProps> = ({
     glove_color: undefined,
     ...initialData,
   });
+
+  useEffect(() => {
+    const loadMembers = async () => {
+      if (!organization) return;
+      
+      try {
+        const memberships = await organization.getMemberships();
+        const membersList = memberships
+          .filter(member => member.role === 'org:member')
+          .map(member => ({
+            id: member.publicUserData?.userId || '',
+            name: `${member.publicUserData?.firstName || ''} ${member.publicUserData?.lastName || ''}`.trim() || member.publicUserData?.identifier || 'Unknown User'
+          }));
+        
+        setMembers(membersList);
+      } catch (error) {
+        console.error('Error loading organization members:', error);
+      }
+    };
+
+    loadMembers();
+  }, [organization]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -136,13 +159,11 @@ const AssetForm: React.FC<AssetFormProps> = ({
             onChange={handleChange}
           >
             <option value="">Unassigned</option>
-            {users
-              .filter(user => user.role === 'technician')
-              .map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
+            {members.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
           </select>
         </div>
 
