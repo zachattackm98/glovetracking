@@ -18,11 +18,21 @@ if (!clerkPubKey.startsWith('pk_test_') && !clerkPubKey.startsWith('pk_live_')) 
 
 function ClerkProviderWithRoutes() {
   const navigate = useNavigate();
-  
+
   return (
     <ClerkProvider 
       publishableKey={clerkPubKey}
       navigate={(to) => navigate(to)}
+      appearance={{
+        baseTheme: undefined,
+        variables: {
+          colorPrimary: '#2563eb',
+        },
+      }}
+      // Add retry configuration
+      loadingStrategy="lazy"
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
     >
       <App />
     </ClerkProvider>
