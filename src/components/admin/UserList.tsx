@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../../hooks/useRole';
-import { UserPlus, Mail, Calendar } from 'lucide-react';
+import { UserPlus, Mail, Calendar, RefreshCw } from 'lucide-react';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 
 const UserList: React.FC = () => {
-  const { organization } = useOrganization();
+  const { organization, membership, isLoaded } = useOrganization();
   const { isAdmin } = useRole();
   const [isInviting, setIsInviting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteError, setInviteError] = useState('');
@@ -39,19 +40,54 @@ const UserList: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await organization?.reload();
+    } catch (error) {
+      console.error('Failed to refresh organization data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   const members = organization?.memberships || [];
   const pendingInvites = organization?.pendingInvitations || [];
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">Organization Members</h2>
-        <Button
-          onClick={() => setShowInviteForm(true)}
-          leftIcon={<UserPlus className="h-4 w-4" />}
-        >
-          Invite Member
-        </Button>
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">Organization Members</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {members.length} member{members.length !== 1 ? 's' : ''} • {pendingInvites.length} pending invitation{pendingInvites.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="flex space-x-3">
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            isLoading={isRefreshing}
+            disabled={isRefreshing}
+            leftIcon={<RefreshCw className={`h-4 w-4 ${isRefreshing ? '' : 'group-hover:animate-spin'}`} />}
+          >
+            Refresh
+          </Button>
+          <Button
+            onClick={() => setShowInviteForm(true)}
+            leftIcon={<UserPlus className="h-4 w-4" />}
+          >
+            Invite Member
+          </Button>
+        </div>
       </div>
 
       {showInviteForm && (
@@ -132,7 +168,7 @@ const UserList: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700">
-                        {member.publicUserData?.firstName?.[0] || 'U'}
+                        {member.publicUserData?.firstName?.[0] || member.publicUserData?.identifier?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="ml-3">
                         <div className="text-sm font-medium text-gray-900">
