@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './database.types';
+import { useAuth } from '@clerk/clerk-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -22,8 +23,10 @@ export const adminSupabase = createClient<Database>(supabaseUrl, supabaseService
 
 // Function to get Supabase client with Clerk session
 export const getSupabaseClient = async () => {
+  const { getToken } = useAuth();
+  
   try {
-    const token = await fetch('https://your-clerk-frontend-api/session').then(r => r.json());
+    const token = await getToken({ template: 'supabase' });
     
     return createClient<Database>(supabaseUrl, supabaseAnonKey, {
       global: {
