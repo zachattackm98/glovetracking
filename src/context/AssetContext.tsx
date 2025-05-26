@@ -162,7 +162,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (error) throw error;
 
     const newAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => [...prev, { ...newAsset, certificationDocuments: [] }]);
+    setAssets(prev => [...prev, newAsset]);
   };
 
   const updateAsset = async (id: string, assetData: Partial<Asset>) => {
