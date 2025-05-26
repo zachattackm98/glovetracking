@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth, useUser } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
 
 interface ProtectedRouteProps {
@@ -10,11 +10,10 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   allowedRoles = []
 }) => {
-  const { isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
+  const { isLoaded, userId } = useAuth();
   const { role, isLoading } = useRole();
   
-  // Show loading state while Clerk is initializing
+  // Show loading state
   if (!isLoaded || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -24,7 +23,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
   
   // If not authenticated, redirect to login
-  if (!isSignedIn || !user) {
+  if (!userId) {
     return <Navigate to="/sign-in" replace />;
   }
   
