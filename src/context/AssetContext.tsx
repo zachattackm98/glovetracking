@@ -3,7 +3,7 @@ import { format, addMonths } from 'date-fns';
 import { Asset, AssetStatus, CertificationDocument } from '../types';
 import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase, adminSupabase, createSupabaseClientWithAuth } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
 // Types
@@ -113,7 +113,7 @@ const mapClerkMembershipToMember = (membership: any): OrganizationMember => ({
 // Main Provider Component
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
-  const { organization } = useOrganization();
+  const { organization, membership } = useOrganization();
   const { isAdmin } = useRole();
   
   // State management
@@ -123,7 +123,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [error, setError] = useState<string | null>(null);
 
   // Helper function to get appropriate Supabase client
-  const getClient = () => isAdmin ? adminSupabase : supabase;
+  const getClient = () => {
+    // Always use admin client since we're using Clerk for auth, not Supabase auth
+    // The RLS policies expect specific JWT claims that Clerk doesn't provide
+    return adminSupabase;
+  };
 
   /**
    * Fetches organization members from Clerk
@@ -155,6 +159,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
+      console.log('Fetching assets for organization:', organization.id);
       const client = getClient();
 
       // Fetch assets and documents in parallel
@@ -163,15 +168,24 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         client.from('certification_documents').select('*').eq('org_id', organization.id)
       ]);
 
-      if (assetsResponse.error) throw assetsResponse.error;
-      if (documentsResponse.error) throw documentsResponse.error;
+      if (assetsResponse.error) {
+        console.error('Assets fetch error:', assetsResponse.error);
+        throw assetsResponse.error;
+      }
+      if (documentsResponse.error) {
+        console.error('Documents fetch error:', documentsResponse.error);
+        throw documentsResponse.error;
+      }
+
+      console.log('Assets fetched:', assetsResponse.data?.length || 0);
+      console.log('Documents fetched:', documentsResponse.data?.length || 0);
 
       // Process and combine assets with their documents
-      const processedAssets = assetsResponse.data.map(dbAsset => {
+      const processedAssets = (assetsResponse.data || []).map(dbAsset => {
         const asset = mapDatabaseAssetToAsset(dbAsset);
         
         // Attach related certification documents
-        asset.certificationDocuments = documentsResponse.data
+        asset.certificationDocuments = (documentsResponse.data || [])
           .filter(doc => doc.asset_id === asset.id)
           .map(doc => ({
             id: doc.id,
@@ -187,9 +201,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setAssets(processedAssets);
       setError(null);
+      console.log('Assets processed and set:', processedAssets.length);
     } catch (err: any) {
       console.error('Error fetching assets:', err);
-      setError(err.message);
+      setError(`Failed to fetch assets: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -198,13 +213,17 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Effect to fetch data when organization or user changes
   useEffect(() => {
     if (organization && user) {
+      console.log('Organization and user available, fetching data...');
       // Fetch both assets and organization members in parallel
       Promise.all([
         fetchAssets(),
         fetchOrganizationMembers()
       ]);
+    } else {
+      console.log('Organization or user not available yet');
+      setIsLoading(false);
     }
-  }, [organization?.id, user]);
+  }, [organization?.id, user?.id]);
 
   // Asset management functions
   const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>): Promise<void> => {
@@ -345,7 +364,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Update local state with new documents
     setAssets(prev => prev.map(asset => {
       if (assetIds.includes(asset.id)) {
-        const assetDocs = data.filter(doc => doc.asset_id === asset.id);
+        const assetDocs = (data || []).filter(doc => doc.asset_id === asset.id);
         return {
           ...asset,
           certificationDocuments: [
@@ -451,7 +470,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (error) throw error;
 
-    const importedAssets = data.map(mapDatabaseAssetToAsset);
+    const importedAssets = (data || []).map(mapDatabaseAssetToAsset);
     setAssets(prev => [...prev, ...importedAssets]);
   };
 

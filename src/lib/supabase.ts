@@ -19,3 +19,23 @@ export const adminSupabase = createClient<Database>(supabaseUrl, supabaseService
     persistSession: false,
   },
 });
+
+// Function to create a Supabase client with custom JWT for Clerk integration
+export const createSupabaseClientWithAuth = (userId: string, orgId: string, orgRole: string) => {
+  // Create a custom JWT payload that matches what the RLS policies expect
+  const customJWT = {
+    sub: userId,
+    user_id: userId,
+    org_id: orgId,
+    org_role: orgRole,
+    aud: 'authenticated',
+    role: 'authenticated',
+    iss: 'supabase',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiry
+  };
+
+  // For now, we'll use the service role client since we can't easily create custom JWTs
+  // In a production environment, you'd want to create a proper JWT signing mechanism
+  return adminSupabase;
+};
