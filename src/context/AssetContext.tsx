@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { format, addMonths } from 'date-fns';
-import { Asset, AssetStatus, CertificationDocument } from '../types';
+import { Asset, AssetStatus, CertificationDocument, OrganizationMember } from '../types';
 import { useUser, useOrganization, useAuth } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
+import { useOrganizationData } from '../hooks/useOrganizationData';
+import { mapClerkMembershipToMember } from '../utils/organizationUtils';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../lib/database.types';
 
 interface AssetContextType {
   assets: Asset[];
+  organizationMembers: OrganizationMember[];
   isLoading: boolean;
   error: string | null;
   addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => Promise<void>;
@@ -25,6 +28,7 @@ interface AssetContextType {
 
 const AssetContext = createContext<AssetContextType>({
   assets: [],
+  organizationMembers: [],
   isLoading: false,
   error: null,
   addAsset: async () => {},
@@ -79,12 +83,16 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const { organization } = useOrganization();
   const { getToken } = useAuth();
   const { isAdmin } = useRole();
+  const { members } = useOrganizationData();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  // Map Clerk members to OrganizationMember type
+  const organizationMembers: OrganizationMember[] = members.map(mapClerkMembershipToMember);
 
   /**
    * Creates an authenticated Supabase client with the user's JWT token
@@ -442,6 +450,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <AssetContext.Provider
       value={{
         assets,
+        organizationMembers,
         isLoading,
         error,
         addAsset,
