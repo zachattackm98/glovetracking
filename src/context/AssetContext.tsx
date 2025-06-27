@@ -7,6 +7,7 @@ import { useOrganizationData } from '../hooks/useOrganizationData';
 import { mapClerkMembershipToMember } from '../utils/organizationUtils';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../lib/database.types';
+import toast from 'react-hot-toast';
 
 interface AssetContextType {
   assets: Asset[];
@@ -96,7 +97,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /**
    * Creates an authenticated Supabase client with the user's JWT token
-   * Includes proper claims for RLS policies
+   * Includes proper claims for RLS policies and debugging
    */
   const getClient = async () => {
     try {
@@ -106,7 +107,23 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('No authentication token available');
       }
 
-      return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      console.log('JWT Token obtained for Supabase');
+      
+      // Decode and log JWT for debugging (remove in production)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log('JWT Claims:', {
+          org_id: payload.org_id,
+          org_role: payload.org_role,
+          user_id: payload.user_id,
+          email: payload.email,
+          exp: new Date(payload.exp * 1000).toISOString()
+        });
+      } catch (e) {
+        console.warn('Could not decode JWT for debugging:', e);
+      }
+
+      const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         global: {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -116,6 +133,24 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           persistSession: false,
         },
       });
+
+      // Test the connection and JWT claims
+      try {
+        const { data: debugData, error: debugError } = await client
+          .from('debug_current_user')
+          .select('*')
+          .limit(1);
+        
+        if (debugError) {
+          console.warn('Debug query failed:', debugError);
+        } else {
+          console.log('Debug JWT data from Supabase:', debugData);
+        }
+      } catch (e) {
+        console.warn('Could not run debug query:', e);
+      }
+
+      return client;
     } catch (error) {
       console.error('Error getting authenticated client:', error);
       throw error;
@@ -129,6 +164,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
+      console.log('Fetching assets for organization:', organization.id);
       const client = await getClient();
 
       const { data: assetsData, error: assetsError } = await client
@@ -136,18 +172,28 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .select('*')
         .eq('org_id', organization.id);
 
-      if (assetsError) throw assetsError;
+      if (assetsError) {
+        console.error('Assets fetch error:', assetsError);
+        throw assetsError;
+      }
+
+      console.log('Assets fetched successfully:', assetsData?.length || 0);
 
       const { data: documentsData, error: documentsError } = await client
         .from('certification_documents')
         .select('*')
         .eq('org_id', organization.id);
 
-      if (documentsError) throw documentsError;
+      if (documentsError) {
+        console.error('Documents fetch error:', documentsError);
+        throw documentsError;
+      }
 
-      const processedAssets = assetsData.map(dbAsset => {
+      console.log('Documents fetched successfully:', documentsData?.length || 0);
+
+      const processedAssets = (assetsData || []).map(dbAsset => {
         const asset = mapDatabaseAssetToAsset(dbAsset);
-        asset.certificationDocuments = documentsData
+        asset.certificationDocuments = (documentsData || [])
           .filter(doc => doc.asset_id === asset.id)
           .map(doc => ({
             id: doc.id,
@@ -165,6 +211,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err: any) {
       console.error('Error fetching assets:', err);
       setError(err.message);
+      toast.error(`Failed to fetch assets: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -182,6 +229,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const status = calculateAssetStatus(nextCertificationDate);
 
     try {
+      console.log('Creating asset with organization ID:', organization.id);
       const client = await getClient();
       
       const insertData = {
@@ -206,14 +254,23 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Supabase insert error:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         throw new Error(`Failed to create asset: ${error.message}`);
       }
 
+      console.log('Asset created successfully:', data);
       const newAsset = mapDatabaseAssetToAsset(data);
       setAssets(prev => [...prev, newAsset]);
-    } catch (error) {
+      toast.success('Asset created successfully');
+    } catch (error: any) {
       console.error('Error in addAsset:', error);
+      toast.error(`Failed to create asset: ${error.message}`);
       throw error;
     }
   };
@@ -236,34 +293,54 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateData.status = calculateAssetStatus(nextCertificationDate);
     }
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('assets')
-      .update(updateData)
-      .eq('id', id)
-      .eq('org_id', organization.id)
-      .select()
-      .single();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('assets')
+        .update(updateData)
+        .eq('id', id)
+        .eq('org_id', organization.id)
+        .select()
+        .single();
 
-    if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw new Error(`Failed to update asset: ${error.message}`);
+      }
 
-    const updatedAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      const updatedAsset = mapDatabaseAssetToAsset(data);
+      setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      toast.success('Asset updated successfully');
+    } catch (error: any) {
+      console.error('Error in updateAsset:', error);
+      toast.error(`Failed to update asset: ${error.message}`);
+      throw error;
+    }
   };
 
   const deleteAsset = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { error } = await client
-      .from('assets')
-      .delete()
-      .eq('id', id)
-      .eq('org_id', organization.id);
+    try {
+      const client = await getClient();
+      const { error } = await client
+        .from('assets')
+        .delete()
+        .eq('id', id)
+        .eq('org_id', organization.id);
 
-    if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw new Error(`Failed to delete asset: ${error.message}`);
+      }
 
-    setAssets(prev => prev.filter(asset => asset.id !== id));
+      setAssets(prev => prev.filter(asset => asset.id !== id));
+      toast.success('Asset deleted successfully');
+    } catch (error: any) {
+      console.error('Error in deleteAsset:', error);
+      toast.error(`Failed to delete asset: ${error.message}`);
+      throw error;
+    }
   };
 
   const uploadDocument = async (assetId: string, file: File) => {
@@ -271,37 +348,47 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const fileUrl = URL.createObjectURL(file);
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('certification_documents')
-      .insert({
-        asset_id: assetId,
-        file_name: file.name,
-        file_url: fileUrl,
-        uploaded_by: user.id,
-        org_id: organization.id,
-      })
-      .select()
-      .single();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('certification_documents')
+        .insert({
+          asset_id: assetId,
+          file_name: file.name,
+          file_url: fileUrl,
+          uploaded_by: user.id,
+          org_id: organization.id,
+        })
+        .select()
+        .single();
 
-    if (error) throw error;
-
-    setAssets(prev => prev.map(asset => {
-      if (asset.id === assetId) {
-        return {
-          ...asset,
-          certificationDocuments: [...asset.certificationDocuments, {
-            id: data.id,
-            assetId: data.asset_id,
-            fileName: data.file_name,
-            fileUrl: data.file_url,
-            uploadDate: data.upload_date,
-            uploadedBy: data.uploaded_by,
-          }],
-        };
+      if (error) {
+        console.error('Document upload error:', error);
+        throw new Error(`Failed to upload document: ${error.message}`);
       }
-      return asset;
-    }));
+
+      setAssets(prev => prev.map(asset => {
+        if (asset.id === assetId) {
+          return {
+            ...asset,
+            certificationDocuments: [...asset.certificationDocuments, {
+              id: data.id,
+              assetId: data.asset_id,
+              fileName: data.file_name,
+              fileUrl: data.file_url,
+              uploadDate: data.upload_date,
+              uploadedBy: data.uploaded_by,
+            }],
+          };
+        }
+        return asset;
+      }));
+      toast.success('Document uploaded successfully');
+    } catch (error: any) {
+      console.error('Error in uploadDocument:', error);
+      toast.error(`Failed to upload document: ${error.message}`);
+      throw error;
+    }
   };
 
   const bulkUploadDocument = async (assetIds: string[], file: File) => {
@@ -317,77 +404,107 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       org_id: organization.id,
     }));
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('certification_documents')
-      .insert(documents)
-      .select();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('certification_documents')
+        .insert(documents)
+        .select();
 
-    if (error) throw error;
-
-    setAssets(prev => prev.map(asset => {
-      if (assetIds.includes(asset.id)) {
-        const assetDocs = data.filter(doc => doc.asset_id === asset.id);
-        return {
-          ...asset,
-          certificationDocuments: [
-            ...asset.certificationDocuments,
-            ...assetDocs.map(doc => ({
-              id: doc.id,
-              assetId: doc.asset_id,
-              fileName: doc.file_name,
-              fileUrl: doc.file_url,
-              uploadDate: doc.upload_date,
-              uploadedBy: doc.uploaded_by,
-            })),
-          ],
-        };
+      if (error) {
+        console.error('Bulk upload error:', error);
+        throw new Error(`Failed to upload documents: ${error.message}`);
       }
-      return asset;
-    }));
+
+      setAssets(prev => prev.map(asset => {
+        if (assetIds.includes(asset.id)) {
+          const assetDocs = (data || []).filter(doc => doc.asset_id === asset.id);
+          return {
+            ...asset,
+            certificationDocuments: [
+              ...asset.certificationDocuments,
+              ...assetDocs.map(doc => ({
+                id: doc.id,
+                assetId: doc.asset_id,
+                fileName: doc.file_name,
+                fileUrl: doc.file_url,
+                uploadDate: doc.upload_date,
+                uploadedBy: doc.uploaded_by,
+              })),
+            ],
+          };
+        }
+        return asset;
+      }));
+      toast.success(`Documents uploaded to ${assetIds.length} assets`);
+    } catch (error: any) {
+      console.error('Error in bulkUploadDocument:', error);
+      toast.error(`Failed to upload documents: ${error.message}`);
+      throw error;
+    }
   };
 
   const markAsFailed = async (id: string, reason: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('assets')
-      .update({
-        status: 'failed',
-        failure_date: format(new Date(), 'yyyy-MM-dd'),
-        failure_reason: reason,
-      })
-      .eq('id', id)
-      .eq('org_id', organization.id)
-      .select()
-      .single();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('assets')
+        .update({
+          status: 'failed',
+          failure_date: format(new Date(), 'yyyy-MM-dd'),
+          failure_reason: reason,
+        })
+        .eq('id', id)
+        .eq('org_id', organization.id)
+        .select()
+        .single();
 
-    if (error) throw error;
+      if (error) {
+        console.error('Mark as failed error:', error);
+        throw new Error(`Failed to mark asset as failed: ${error.message}`);
+      }
 
-    const updatedAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      const updatedAsset = mapDatabaseAssetToAsset(data);
+      setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      toast.success('Asset marked as failed');
+    } catch (error: any) {
+      console.error('Error in markAsFailed:', error);
+      toast.error(`Failed to mark asset as failed: ${error.message}`);
+      throw error;
+    }
   };
 
   const markAsInTesting = async (id: string) => {
     if (!organization?.id) throw new Error('No organization found');
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('assets')
-      .update({
-        status: 'in-testing',
-        testing_start_date: format(new Date(), 'yyyy-MM-dd'),
-      })
-      .eq('id', id)
-      .eq('org_id', organization.id)
-      .select()
-      .single();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('assets')
+        .update({
+          status: 'in-testing',
+          testing_start_date: format(new Date(), 'yyyy-MM-dd'),
+        })
+        .eq('id', id)
+        .eq('org_id', organization.id)
+        .select()
+        .single();
 
-    if (error) throw error;
+      if (error) {
+        console.error('Mark as in testing error:', error);
+        throw new Error(`Failed to mark asset as in testing: ${error.message}`);
+      }
 
-    const updatedAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      const updatedAsset = mapDatabaseAssetToAsset(data);
+      setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
+      toast.success('Asset marked as in testing');
+    } catch (error: any) {
+      console.error('Error in markAsInTesting:', error);
+      toast.error(`Failed to mark asset as in testing: ${error.message}`);
+      throw error;
+    }
   };
 
   const getAssetsByUser = (userId: string) => {
@@ -425,16 +542,26 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     });
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('assets')
-      .insert(assetsToInsert)
-      .select();
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('assets')
+        .insert(assetsToInsert)
+        .select();
 
-    if (error) throw error;
+      if (error) {
+        console.error('Import error:', error);
+        throw new Error(`Failed to import assets: ${error.message}`);
+      }
 
-    const importedAssets = data.map(mapDatabaseAssetToAsset);
-    setAssets(prev => [...prev, ...importedAssets]);
+      const importedAssets = (data || []).map(mapDatabaseAssetToAsset);
+      setAssets(prev => [...prev, ...importedAssets]);
+      toast.success(`Imported ${importedAssets.length} assets`);
+    } catch (error: any) {
+      console.error('Error in importAssets:', error);
+      toast.error(`Failed to import assets: ${error.message}`);
+      throw error;
+    }
   };
 
   const exportAssets = () => {

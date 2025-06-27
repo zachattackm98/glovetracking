@@ -8,6 +8,13 @@ export interface User {
   createdAt: string;
 }
 
+export interface OrganizationMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 export type AssetStatus = 'active' | 'near-due' | 'expired' | 'failed' | 'in-testing';
 export type AssetClass = 'Class 0' | 'Class 00' | 'Class 1' | 'Class 2' | 'Class 3' | 'Class 4';
 export type GloveSize = '7' | '8' | '9' | '10' | '11' | '12';
