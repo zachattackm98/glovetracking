@@ -11,14 +11,21 @@ import Card, { CardContent, CardHeader, CardFooter } from '../components/ui/Card
 import AssetForm from '../components/assets/AssetForm';
 import DocumentUpload from '../components/assets/DocumentUpload';
 import StatusBadge from '../components/ui/StatusBadge';
-import { User } from '../types';
 
 const AssetDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
   const { isAdmin, isMember } = useRole();
-  const { getAssetById, updateAsset, deleteAsset, uploadDocument, markAsFailed, markAsInTesting } = useAssets();
+  const { 
+    getAssetById, 
+    organizationMembers, 
+    updateAsset, 
+    deleteAsset, 
+    uploadDocument, 
+    markAsFailed, 
+    markAsInTesting 
+  } = useAssets();
   
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,23 +50,6 @@ const AssetDetailsPage: React.FC = () => {
     navigate('/assets');
     return null;
   }
-  
-  const users: User[] = [
-    {
-      id: '1',
-      name: 'Admin User',
-      email: 'admin@example.com',
-      role: 'admin',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      name: 'Tech User',
-      email: 'tech@example.com',
-      role: 'member',
-      createdAt: new Date().toISOString(),
-    },
-  ];
   
   const formatDate = (dateString: string) => {
     try {
@@ -88,9 +78,9 @@ const AssetDetailsPage: React.FC = () => {
   
   const assignedUserName = useMemo(() => {
     if (!asset.assignedUserId) return 'Unassigned';
-    const foundUser = users.find(u => u.id === asset.assignedUserId);
+    const foundUser = organizationMembers.find(u => u.id === asset.assignedUserId);
     return foundUser ? foundUser.name : 'Unknown User';
-  }, [asset.assignedUserId, users]);
+  }, [asset.assignedUserId, organizationMembers]);
   
   const handleUpdateAsset = async (data: any) => {
     setIsSubmitting(true);
@@ -228,7 +218,6 @@ const AssetDetailsPage: React.FC = () => {
             <CardContent>
               {isEditing ? (
                 <AssetForm
-                  users={users}
                   initialData={asset}
                   onSubmit={handleUpdateAsset}
                   onCancel={() => setIsEditing(false)}
@@ -246,6 +235,18 @@ const AssetDetailsPage: React.FC = () => {
                         <p className="text-sm font-medium text-gray-500">Class</p>
                         <p className="mt-1 text-base text-gray-900">{asset.assetClass}</p>
                       </div>
+                      {asset.gloveSize && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Size</p>
+                          <p className="mt-1 text-base text-gray-900">Size {asset.gloveSize}</p>
+                        </div>
+                      )}
+                      {asset.gloveColor && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Color</p>
+                          <p className="mt-1 text-base text-gray-900 capitalize">{asset.gloveColor}</p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm font-medium text-gray-500">Assigned To</p>
                         <p className="mt-1 text-base text-gray-900">{assignedUserName}</p>
@@ -390,6 +391,7 @@ const AssetDetailsPage: React.FC = () => {
             <CardContent>
               {isAdmin && asset.status !== 'failed' ? (
                 <DocumentUpload
+                  assetId={asset.id}
                   onUpload={handleDocumentUpload}
                   documents={asset.certificationDocuments}
                   isUploading={isUploading}
@@ -406,7 +408,7 @@ const AssetDetailsPage: React.FC = () => {
                             <FileText className="h-5 w-5 text-primary-500 mr-2" />
                             <div>
                               <p className="text-sm font-medium text-gray-900">{doc.fileName}</p>
-                              <p className="text-xs text-gray-500">Uploaded on {doc.uploadDate}</p>
+                              <p className="text-xs text-gray-500">Uploaded on {new Date(doc.uploadDate).toLocaleDateString()}</p>
                               {doc.appliedToAssets && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   Applied to {doc.appliedToAssets.length} asset{doc.appliedToAssets.length !== 1 ? 's' : ''}

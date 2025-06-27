@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useOrganization } from '@clerk/clerk-react';
+import React, { useState } from 'react';
 import { Asset, AssetClass, GloveSize, GloveColor } from '../../types';
+import { useAssets } from '../../context/AssetContext';
 import Button from '../ui/Button';
 
 interface AssetFormProps {
@@ -16,8 +16,7 @@ const AssetForm: React.FC<AssetFormProps> = ({
   onCancel,
   isSubmitting = false,
 }) => {
-  const { organization } = useOrganization();
-  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const { organizationMembers } = useAssets();
   const [formData, setFormData] = useState<Partial<Asset>>({
     serialNumber: '',
     assetClass: 'Class 1',
@@ -28,28 +27,6 @@ const AssetForm: React.FC<AssetFormProps> = ({
     gloveColor: undefined,
     ...initialData,
   });
-
-  useEffect(() => {
-    const loadMembers = async () => {
-      if (!organization) return;
-      
-      try {
-        const memberships = await organization.getMemberships();
-        const membersList = memberships
-          .filter(member => member.role === 'org:member')
-          .map(member => ({
-            id: member.publicUserData?.userId || '',
-            name: `${member.publicUserData?.firstName || ''} ${member.publicUserData?.lastName || ''}`.trim() || member.publicUserData?.identifier || 'Unknown User'
-          }));
-        
-        setMembers(membersList);
-      } catch (error) {
-        console.error('Error loading organization members:', error);
-      }
-    };
-
-    loadMembers();
-  }, [organization]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -159,9 +136,9 @@ const AssetForm: React.FC<AssetFormProps> = ({
             onChange={handleChange}
           >
             <option value="">Unassigned</option>
-            {members.map(member => (
+            {organizationMembers.map(member => (
               <option key={member.id} value={member.id}>
-                {member.name}
+                {member.name} ({member.email})
               </option>
             ))}
           </select>

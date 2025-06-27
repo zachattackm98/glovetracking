@@ -8,42 +8,22 @@ import AssetsList from '../components/assets/AssetsList';
 import Button from '../components/ui/Button';
 import AssetForm from '../components/assets/AssetForm';
 import BulkUpload from '../components/assets/BulkUpload';
-import { User } from '../types';
 
 const AssetsPage: React.FC = () => {
   const { user } = useUser();
   const { isAdmin, isMember } = useRole();
-  const { assets, addAsset, bulkUploadDocument } = useAssets();
+  const { assets, organizationMembers, addAsset, bulkUploadDocument } = useAssets();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
-  const users: User[] = useMemo(() => {
-    return [
-      {
-        id: '1',
-        name: 'Admin User',
-        email: 'admin@example.com',
-        role: 'admin',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        name: 'Tech User',
-        email: 'tech@example.com',
-        role: 'member',
-        createdAt: new Date().toISOString(),
-      },
-    ];
-  }, []);
-  
   const userMap = useMemo(() => {
-    return users.reduce<Record<string, string>>((acc, user) => {
-      acc[user.id] = user.name;
+    return organizationMembers.reduce<Record<string, string>>((acc, member) => {
+      acc[member.id] = member.name;
       return acc;
     }, {});
-  }, [users]);
+  }, [organizationMembers]);
   
   const displayedAssets = useMemo(() => {
     if (isAdmin) {
@@ -109,7 +89,6 @@ const AssetsPage: React.FC = () => {
         <div className="mb-6 bg-white shadow-sm rounded-lg p-6 border border-gray-200">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Create New Asset</h2>
           <AssetForm 
-            users={users} 
             onSubmit={handleCreateAsset} 
             onCancel={() => setShowCreateForm(false)}
             isSubmitting={isSubmitting}

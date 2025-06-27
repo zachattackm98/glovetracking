@@ -6,8 +6,16 @@ import { useRole } from '../hooks/useRole';
 import { supabase, adminSupabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
+interface OrganizationMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface AssetContextType {
   assets: Asset[];
+  organizationMembers: OrganizationMember[];
   isLoading: boolean;
   error: string | null;
   addAsset: (asset: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => Promise<void>;
@@ -25,6 +33,7 @@ interface AssetContextType {
 
 const AssetContext = createContext<AssetContextType>({
   assets: [],
+  organizationMembers: [],
   isLoading: false,
   error: null,
   addAsset: async () => {},
@@ -79,8 +88,32 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const { organization } = useOrganization();
   const { isAdmin } = useRole();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchOrganizationMembers = async () => {
+    if (!organization) return;
+
+    try {
+      console.log('Fetching organization members...');
+      const memberships = await organization.getMemberships();
+      
+      const members: OrganizationMember[] = memberships.map(membership => ({
+        id: membership.publicUserData?.userId || '',
+        name: `${membership.publicUserData?.firstName || ''} ${membership.publicUserData?.lastName || ''}`.trim() || 
+              membership.publicUserData?.identifier || 'Unknown User',
+        email: membership.publicUserData?.identifier || '',
+        role: membership.role === 'org:admin' ? 'admin' : 'member',
+      }));
+
+      console.log('Organization members loaded:', members);
+      setOrganizationMembers(members);
+    } catch (err: any) {
+      console.error('Error fetching organization members:', err);
+      // Don't set error state for member fetching as it's not critical
+    }
+  };
 
   const fetchAssets = async () => {
     if (!organization?.id || !user) {
@@ -131,7 +164,13 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    fetchAssets();
+    if (organization && user) {
+      // Fetch both assets and organization members
+      Promise.all([
+        fetchAssets(),
+        fetchOrganizationMembers()
+      ]);
+    }
   }, [organization?.id, user]);
 
   const getClient = () => isAdmin ? adminSupabase : supabase;
@@ -411,6 +450,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <AssetContext.Provider
       value={{
         assets,
+        organizationMembers,
         isLoading,
         error,
         addAsset,
