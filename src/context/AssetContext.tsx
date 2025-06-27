@@ -6,6 +6,7 @@ import { useRole } from '../hooks/useRole';
 import { supabase, adminSupabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
+// Types
 interface OrganizationMember {
   id: string;
   name: string;
@@ -31,6 +32,7 @@ interface AssetContextType {
   exportAssets: () => string;
 }
 
+// Context creation with default values
 const AssetContext = createContext<AssetContextType>({
   assets: [],
   organizationMembers: [],
@@ -49,8 +51,15 @@ const AssetContext = createContext<AssetContextType>({
   exportAssets: () => '',
 });
 
+// Custom hook to use the context
 export const useAssets = () => useContext(AssetContext);
 
+// Utility functions
+/**
+ * Calculates asset status based on next certification date
+ * @param nextCertificationDate - The next certification date in string format
+ * @returns AssetStatus - The calculated status
+ */
 const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
   const now = new Date();
   const certDate = new Date(nextCertificationDate);
@@ -65,6 +74,11 @@ const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
   }
 };
 
+/**
+ * Maps database asset row to Asset interface
+ * @param dbAsset - Raw asset data from database
+ * @returns Asset - Mapped asset object
+ */
 const mapDatabaseAssetToAsset = (dbAsset: Database['public']['Tables']['assets']['Row']): Asset => ({
   id: dbAsset.id,
   orgId: dbAsset.org_id,
@@ -83,64 +97,81 @@ const mapDatabaseAssetToAsset = (dbAsset: Database['public']['Tables']['assets']
   certificationDocuments: [],
 });
 
+/**
+ * Maps Clerk organization membership to OrganizationMember interface
+ * @param membership - Clerk membership object
+ * @returns OrganizationMember - Mapped member object
+ */
+const mapClerkMembershipToMember = (membership: any): OrganizationMember => ({
+  id: membership.publicUserData?.userId || '',
+  name: `${membership.publicUserData?.firstName || ''} ${membership.publicUserData?.lastName || ''}`.trim() || 
+        membership.publicUserData?.identifier || 'Unknown User',
+  email: membership.publicUserData?.identifier || '',
+  role: membership.role === 'org:admin' ? 'admin' : 'member',
+});
+
+// Main Provider Component
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
   const { organization } = useOrganization();
   const { isAdmin } = useRole();
+  
+  // State management
   const [assets, setAssets] = useState<Asset[]>([]);
   const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOrganizationMembers = async () => {
+  // Helper function to get appropriate Supabase client
+  const getClient = () => isAdmin ? adminSupabase : supabase;
+
+  /**
+   * Fetches organization members from Clerk
+   */
+  const fetchOrganizationMembers = async (): Promise<void> => {
     if (!organization) return;
 
     try {
       console.log('Fetching organization members...');
       const memberships = await organization.getMemberships();
       
-      const members: OrganizationMember[] = memberships.map(membership => ({
-        id: membership.publicUserData?.userId || '',
-        name: `${membership.publicUserData?.firstName || ''} ${membership.publicUserData?.lastName || ''}`.trim() || 
-              membership.publicUserData?.identifier || 'Unknown User',
-        email: membership.publicUserData?.identifier || '',
-        role: membership.role === 'org:admin' ? 'admin' : 'member',
-      }));
+      const members: OrganizationMember[] = memberships.map(mapClerkMembershipToMember);
 
       console.log('Organization members loaded:', members);
       setOrganizationMembers(members);
     } catch (err: any) {
       console.error('Error fetching organization members:', err);
-      // Don't set error state for member fetching as it's not critical
+      // Don't set error state for member fetching as it's not critical for app functionality
     }
   };
 
-  const fetchAssets = async () => {
+  /**
+   * Fetches assets and their associated documents from Supabase
+   */
+  const fetchAssets = async (): Promise<void> => {
     if (!organization?.id || !user) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const client = isAdmin ? adminSupabase : supabase;
+      const client = getClient();
 
-      const { data: assetsData, error: assetsError } = await client
-        .from('assets')
-        .select('*')
-        .eq('org_id', organization.id);
+      // Fetch assets and documents in parallel
+      const [assetsResponse, documentsResponse] = await Promise.all([
+        client.from('assets').select('*').eq('org_id', organization.id),
+        client.from('certification_documents').select('*').eq('org_id', organization.id)
+      ]);
 
-      if (assetsError) throw assetsError;
+      if (assetsResponse.error) throw assetsResponse.error;
+      if (documentsResponse.error) throw documentsResponse.error;
 
-      const { data: documentsData, error: documentsError } = await client
-        .from('certification_documents')
-        .select('*')
-        .eq('org_id', organization.id);
-
-      if (documentsError) throw documentsError;
-
-      const processedAssets = assetsData.map(dbAsset => {
+      // Process and combine assets with their documents
+      const processedAssets = assetsResponse.data.map(dbAsset => {
         const asset = mapDatabaseAssetToAsset(dbAsset);
-        asset.certificationDocuments = documentsData
+        
+        // Attach related certification documents
+        asset.certificationDocuments = documentsResponse.data
           .filter(doc => doc.asset_id === asset.id)
           .map(doc => ({
             id: doc.id,
@@ -150,6 +181,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             uploadDate: doc.upload_date,
             uploadedBy: doc.uploaded_by,
           }));
+        
         return asset;
       });
 
@@ -163,9 +195,10 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Effect to fetch data when organization or user changes
   useEffect(() => {
     if (organization && user) {
-      // Fetch both assets and organization members
+      // Fetch both assets and organization members in parallel
       Promise.all([
         fetchAssets(),
         fetchOrganizationMembers()
@@ -173,9 +206,8 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [organization?.id, user]);
 
-  const getClient = () => isAdmin ? adminSupabase : supabase;
-
-  const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
+  // Asset management functions
+  const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
@@ -204,7 +236,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => [...prev, newAsset]);
   };
 
-  const updateAsset = async (id: string, assetData: Partial<Asset>) => {
+  const updateAsset = async (id: string, assetData: Partial<Asset>): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const updateData: Database['public']['Tables']['assets']['Update'] = {
@@ -215,6 +247,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       assigned_user_id: assetData.assignedUserId,
     };
 
+    // Update certification dates if provided
     if (assetData.lastCertificationDate) {
       const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
       updateData.last_certification_date = assetData.lastCertificationDate;
@@ -236,7 +269,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
-  const deleteAsset = async (id: string) => {
+  const deleteAsset = async (id: string): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const { error } = await getClient()
@@ -250,7 +283,8 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => prev.filter(asset => asset.id !== id));
   };
 
-  const uploadDocument = async (assetId: string, file: File) => {
+  // Document management functions
+  const uploadDocument = async (assetId: string, file: File): Promise<void> => {
     if (!organization?.id || !user) throw new Error('No organization found');
 
     const fileUrl = URL.createObjectURL(file);
@@ -269,6 +303,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (error) throw error;
 
+    // Update local state with new document
     setAssets(prev => prev.map(asset => {
       if (asset.id === assetId) {
         return {
@@ -287,7 +322,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   };
 
-  const bulkUploadDocument = async (assetIds: string[], file: File) => {
+  const bulkUploadDocument = async (assetIds: string[], file: File): Promise<void> => {
     if (!organization?.id || !user) throw new Error('No organization found');
 
     const fileUrl = URL.createObjectURL(file);
@@ -307,6 +342,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (error) throw error;
 
+    // Update local state with new documents
     setAssets(prev => prev.map(asset => {
       if (assetIds.includes(asset.id)) {
         const assetDocs = data.filter(doc => doc.asset_id === asset.id);
@@ -329,7 +365,8 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   };
 
-  const markAsFailed = async (id: string, reason: string) => {
+  // Asset status management functions
+  const markAsFailed = async (id: string, reason: string): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const { data, error } = await getClient()
@@ -350,7 +387,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
-  const markAsInTesting = async (id: string) => {
+  const markAsInTesting = async (id: string): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const { data, error } = await getClient()
@@ -370,15 +407,17 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => prev.map(asset => asset.id === id ? updatedAsset : asset));
   };
 
-  const getAssetsByUser = (userId: string) => {
+  // Utility functions for asset retrieval
+  const getAssetsByUser = (userId: string): Asset[] => {
     return assets.filter(asset => asset.assignedUserId === userId);
   };
 
-  const getAssetById = (id: string) => {
+  const getAssetById = (id: string): Asset | undefined => {
     return assets.find(asset => asset.id === id);
   };
 
-  const importAssets = async (newAssets: Partial<Asset>[]) => {
+  // Import/Export functions
+  const importAssets = async (newAssets: Partial<Asset>[]): Promise<void> => {
     if (!organization?.id) throw new Error('No organization found');
 
     const assetsToInsert = newAssets.map(asset => {
@@ -416,7 +455,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAssets(prev => [...prev, ...importedAssets]);
   };
 
-  const exportAssets = () => {
+  const exportAssets = (): string => {
     const headers = [
       'id',
       'serialNumber',
@@ -446,26 +485,27 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [headers, ...rows].join('\n');
   };
 
+  // Context provider value
+  const contextValue: AssetContextType = {
+    assets,
+    organizationMembers,
+    isLoading,
+    error,
+    addAsset,
+    updateAsset,
+    deleteAsset,
+    uploadDocument,
+    bulkUploadDocument,
+    markAsFailed,
+    markAsInTesting,
+    getAssetsByUser,
+    getAssetById,
+    importAssets,
+    exportAssets,
+  };
+
   return (
-    <AssetContext.Provider
-      value={{
-        assets,
-        organizationMembers,
-        isLoading,
-        error,
-        addAsset,
-        updateAsset,
-        deleteAsset,
-        uploadDocument,
-        bulkUploadDocument,
-        markAsFailed,
-        markAsInTesting,
-        getAssetsByUser,
-        getAssetById,
-        importAssets,
-        exportAssets,
-      }}
-    >
+    <AssetContext.Provider value={contextValue}>
       {children}
     </AssetContext.Provider>
   );
