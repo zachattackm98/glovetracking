@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Asset, CertificationDocument } from '../types';
 import { useUser, useOrganization } from '@clerk/clerk-react';
 import { useRole } from '../hooks/useRole';
-import { adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { OrganizationMember, mapClerkMembershipToMember } from '../utils/organizationUtils';
 import {
   fetchAssetsAndDocuments,
@@ -83,9 +83,9 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /**
    * Helper function to get appropriate Supabase client
-   * Always uses admin client since we're using Clerk for auth, not Supabase auth
+   * Now uses the regular supabase client which respects RLS policies
    */
-  const getClient = () => adminSupabase;
+  const getClient = () => supabase;
 
   /**
    * Fetches organization members from Clerk
