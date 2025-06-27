@@ -80,7 +80,7 @@ const mapDatabaseAssetToAsset = (dbAsset: Database['public']['Tables']['assets']
 
 export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
-  const { organization } = useOrganization();
+  const { organization, membership } = useOrganization();
   const { getToken } = useAuth();
   const { isAdmin } = useRole();
   const { members } = useOrganizationData();
@@ -96,22 +96,29 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /**
    * Creates an authenticated Supabase client with the user's JWT token
+   * Includes proper claims for RLS policies
    */
   const getClient = async () => {
     try {
       const token = await getToken({ template: 'supabase' });
       
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
       return createClient<Database>(supabaseUrl, supabaseAnonKey, {
         global: {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         },
+        auth: {
+          persistSession: false,
+        },
       });
     } catch (error) {
       console.error('Error getting authenticated client:', error);
-      // Fallback to unauthenticated client
-      return createClient<Database>(supabaseUrl, supabaseAnonKey);
+      throw error;
     }
   };
 
@@ -169,14 +176,15 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addAsset = async (assetData: Omit<Asset, 'id' | 'status' | 'nextCertificationDate' | 'certificationDocuments' | 'orgId'>) => {
     if (!organization?.id) throw new Error('No organization found');
+    if (!user?.id) throw new Error('No user found');
 
     const nextCertificationDate = format(addMonths(new Date(assetData.lastCertificationDate), 6), 'yyyy-MM-dd');
     const status = calculateAssetStatus(nextCertificationDate);
 
-    const client = await getClient();
-    const { data, error } = await client
-      .from('assets')
-      .insert({
+    try {
+      const client = await getClient();
+      
+      const insertData = {
         org_id: organization.id,
         serial_number: assetData.serialNumber,
         asset_class: assetData.assetClass,
@@ -187,14 +195,27 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         next_certification_date: nextCertificationDate,
         status,
         assigned_user_id: assetData.assignedUserId,
-      })
-      .select()
-      .single();
+      };
 
-    if (error) throw error;
+      console.log('Inserting asset with data:', insertData);
 
-    const newAsset = mapDatabaseAssetToAsset(data);
-    setAssets(prev => [...prev, newAsset]);
+      const { data, error } = await client
+        .from('assets')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(`Failed to create asset: ${error.message}`);
+      }
+
+      const newAsset = mapDatabaseAssetToAsset(data);
+      setAssets(prev => [...prev, newAsset]);
+    } catch (error) {
+      console.error('Error in addAsset:', error);
+      throw error;
+    }
   };
 
   const updateAsset = async (id: string, assetData: Partial<Asset>) => {
