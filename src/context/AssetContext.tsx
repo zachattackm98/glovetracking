@@ -96,66 +96,60 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const organizationMembers: OrganizationMember[] = members.map(mapClerkMembershipToMember);
 
   /**
-   * Creates an authenticated Supabase client with the user's JWT token
-   * Includes proper claims for RLS policies and debugging
+   * Creates a single Supabase client instance with dynamic token fetching
+   * This prevents multiple client instances and ensures fresh tokens
    */
-  const getClient = async () => {
-    try {
-      const token = await getToken({ template: 'supabase' });
-      
-      if (!token) {
-        throw new Error('No authentication token available');
-      }
-
-      console.log('JWT Token obtained for Supabase');
-      
-      // Decode and log JWT for debugging (remove in production)
+  const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {},
+    },
+    auth: {
+      persistSession: false,
+    },
+    accessToken: async () => {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        console.log('JWT Claims:', {
-          org_id: payload.org_id,
-          org_role: payload.org_role,
-          user_id: payload.user_id,
-          email: payload.email,
-          exp: new Date(payload.exp * 1000).toISOString()
-        });
-      } catch (e) {
-        console.warn('Could not decode JWT for debugging:', e);
-      }
-
-      const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-        auth: {
-          persistSession: false,
-        },
-      });
-
-      // Test the connection and JWT claims
-      try {
-        const { data: debugData, error: debugError } = await client
-          .from('debug_current_user')
-          .select('*')
-          .limit(1);
+        const token = await getToken({ template: 'supabase' });
         
-        if (debugError) {
-          console.warn('Debug query failed:', debugError);
-        } else {
-          console.log('Debug JWT data from Supabase:', debugData);
+        if (!token) {
+          console.warn('No authentication token available');
+          return null;
         }
-      } catch (e) {
-        console.warn('Could not run debug query:', e);
-      }
 
-      return client;
-    } catch (error) {
-      console.error('Error getting authenticated client:', error);
-      throw error;
-    }
-  };
+        console.log('JWT Token obtained for Supabase');
+        
+        // Decode and log JWT for debugging (remove in production)
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          console.log('JWT Claims:', {
+            org_id: payload.org_id,
+            org_role: payload.org_role,
+            user_id: payload.user_id,
+            email: payload.email,
+            exp: new Date(payload.exp * 1000).toISOString()
+          });
+
+          // Check for placeholder values that indicate Clerk JWT template misconfiguration
+          if (payload.org_id === '{{organization.id}}' || payload.org_role === 'org.{{organization.role}}') {
+            console.error('⚠️ CLERK JWT TEMPLATE MISCONFIGURATION DETECTED!');
+            console.error('The org_id and org_role claims contain placeholder values instead of actual data.');
+            console.error('Please check your Clerk Dashboard JWT Templates configuration.');
+            console.error('Navigate to: Clerk Dashboard > JWT Templates > Supabase');
+            console.error('Ensure the claims are properly configured to extract dynamic values.');
+            
+            toast.error('Authentication configuration error. Please contact support.');
+            return null;
+          }
+        } catch (e) {
+          console.warn('Could not decode JWT for debugging:', e);
+        }
+
+        return token;
+      } catch (error) {
+        console.error('Error getting authentication token:', error);
+        return null;
+      }
+    },
+  });
 
   const fetchAssets = async () => {
     if (!organization?.id || !user) {
@@ -165,9 +159,8 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       console.log('Fetching assets for organization:', organization.id);
-      const client = await getClient();
 
-      const { data: assetsData, error: assetsError } = await client
+      const { data: assetsData, error: assetsError } = await supabaseClient
         .from('assets')
         .select('*')
         .eq('org_id', organization.id);
@@ -179,7 +172,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       console.log('Assets fetched successfully:', assetsData?.length || 0);
 
-      const { data: documentsData, error: documentsError } = await client
+      const { data: documentsData, error: documentsError } = await supabaseClient
         .from('certification_documents')
         .select('*')
         .eq('org_id', organization.id);
@@ -230,7 +223,6 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       console.log('Creating asset with organization ID:', organization.id);
-      const client = await getClient();
       
       const insertData = {
         org_id: organization.id,
@@ -247,7 +239,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       console.log('Inserting asset with data:', insertData);
 
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('assets')
         .insert(insertData)
         .select()
@@ -294,8 +286,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('assets')
         .update(updateData)
         .eq('id', id)
@@ -322,8 +313,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!organization?.id) throw new Error('No organization found');
 
     try {
-      const client = await getClient();
-      const { error } = await client
+      const { error } = await supabaseClient
         .from('assets')
         .delete()
         .eq('id', id)
@@ -349,8 +339,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fileUrl = URL.createObjectURL(file);
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('certification_documents')
         .insert({
           asset_id: assetId,
@@ -405,8 +394,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('certification_documents')
         .insert(documents)
         .select();
@@ -448,8 +436,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!organization?.id) throw new Error('No organization found');
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('assets')
         .update({
           status: 'failed',
@@ -480,8 +467,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!organization?.id) throw new Error('No organization found');
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('assets')
         .update({
           status: 'in-testing',
@@ -543,8 +529,7 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     try {
-      const client = await getClient();
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('assets')
         .insert(assetsToInsert)
         .select();
