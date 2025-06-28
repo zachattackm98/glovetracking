@@ -47,6 +47,70 @@ const AssetContext = createContext<AssetContextType>({
 
 export const useAssets = () => useContext(AssetContext);
 
+// Environment variables for Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+// Create a single Supabase client instance outside the component
+// This prevents multiple GoTrueClient instances and ensures consistent authentication
+const createSupabaseClient = (getToken: () => Promise<string | null>) => {
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {},
+    },
+    auth: {
+      persistSession: false,
+    },
+    accessToken: async () => {
+      try {
+        const token = await getToken();
+        
+        if (!token) {
+          console.warn('No authentication token available');
+          return null;
+        }
+
+        console.log('JWT Token obtained for Supabase');
+        
+        // Decode and log JWT for debugging (remove in production)
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          console.log('JWT Claims:', {
+            org_id: payload.org_id,
+            org_role: payload.org_role,
+            user_id: payload.user_id,
+            email: payload.email,
+            exp: new Date(payload.exp * 1000).toISOString()
+          });
+
+          // Check for placeholder values that indicate Clerk JWT template misconfiguration
+          if (payload.org_id === '{{organization.id}}' || payload.org_role === 'org.{{organization.role}}') {
+            console.error('⚠️ CLERK JWT TEMPLATE MISCONFIGURATION DETECTED!');
+            console.error('The org_id and org_role claims contain placeholder values instead of actual data.');
+            console.error('Please check your Clerk Dashboard JWT Templates configuration.');
+            console.error('Navigate to: Clerk Dashboard > JWT Templates > Supabase');
+            console.error('Ensure the claims are properly configured to extract dynamic values.');
+            
+            toast.error('Authentication configuration error. Please contact support.');
+            return null;
+          }
+        } catch (e) {
+          console.warn('Could not decode JWT for debugging:', e);
+        }
+
+        return token;
+      } catch (error) {
+        console.error('Error getting authentication token:', error);
+        return null;
+      }
+    },
+  });
+};
+
 const calculateAssetStatus = (nextCertificationDate: string): AssetStatus => {
   const now = new Date();
   const certDate = new Date(nextCertificationDate);
@@ -89,67 +153,11 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
   // Map Clerk members to OrganizationMember type
   const organizationMembers: OrganizationMember[] = members.map(mapClerkMembershipToMember);
 
-  /**
-   * Creates a single Supabase client instance with dynamic token fetching
-   * This prevents multiple client instances and ensures fresh tokens
-   */
-  const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {},
-    },
-    auth: {
-      persistSession: false,
-    },
-    accessToken: async () => {
-      try {
-        const token = await getToken({ template: 'supabase' });
-        
-        if (!token) {
-          console.warn('No authentication token available');
-          return null;
-        }
-
-        console.log('JWT Token obtained for Supabase');
-        
-        // Decode and log JWT for debugging (remove in production)
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          console.log('JWT Claims:', {
-            org_id: payload.org_id,
-            org_role: payload.org_role,
-            user_id: payload.user_id,
-            email: payload.email,
-            exp: new Date(payload.exp * 1000).toISOString()
-          });
-
-          // Check for placeholder values that indicate Clerk JWT template misconfiguration
-          if (payload.org_id === '{{organization.id}}' || payload.org_role === 'org.{{organization.role}}') {
-            console.error('⚠️ CLERK JWT TEMPLATE MISCONFIGURATION DETECTED!');
-            console.error('The org_id and org_role claims contain placeholder values instead of actual data.');
-            console.error('Please check your Clerk Dashboard JWT Templates configuration.');
-            console.error('Navigate to: Clerk Dashboard > JWT Templates > Supabase');
-            console.error('Ensure the claims are properly configured to extract dynamic values.');
-            
-            toast.error('Authentication configuration error. Please contact support.');
-            return null;
-          }
-        } catch (e) {
-          console.warn('Could not decode JWT for debugging:', e);
-        }
-
-        return token;
-      } catch (error) {
-        console.error('Error getting authentication token:', error);
-        return null;
-      }
-    },
-  });
+  // Create Supabase client with token function
+  const supabaseClient = createSupabaseClient(() => getToken({ template: 'supabase' }));
 
   const fetchAssets = async () => {
     if (!organization?.id || !user) {
@@ -159,6 +167,22 @@ export const AssetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     try {
       console.log('Fetching assets for organization:', organization.id);
+
+      // Test JWT claims with debug query first
+      try {
+        const { data: debugData, error: debugError } = await supabaseClient
+          .from('debug_current_user')
+          .select('*')
+          .limit(1);
+
+        if (debugError) {
+          console.log('Debug query failed:', debugError);
+        } else {
+          console.log('Debug query successful:', debugData);
+        }
+      } catch (debugErr) {
+        console.log('Debug query error:', debugErr);
+      }
 
       const { data: assetsData, error: assetsError } = await supabaseClient
         .from('assets')
